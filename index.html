@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Lecteur Port Série</title>
   <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/corbanbrook/dsp.js/dsp.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/corbanbrook/dsp.js/dsp.js"></script> <!-- DSP.js -->
   <style>
     body {
       font-family: sans-serif;
@@ -249,42 +249,45 @@
     });
 
     plotButton.addEventListener("click", () => {
-  const columnIndex = parseInt(columnSelect.value);
-  const values = allData.map(line => {
-    const parts = line.split(";");
-    const value = parseFloat(parts[columnIndex]);
-    return isNaN(value) ? null : value;
-  }).filter(v => v !== null);
+      const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
+      const values = allData.map(line => {
+        const parts = line.split(";");
+        const value = parseFloat(parts[columnIndex]);
+        if (isNaN(value)) {
+          console.log(`Donnée invalide à la ligne : ${line}`);
+        }
+        return value;
+      }).filter(value => !isNaN(value));
 
-  if (values.length === 0) {
-    alert("Aucune donnée valide pour cette colonne.");
-    return;
-  }
+      if (values.length === 0) {
+        console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
+        alert('Aucune donnée valide pour cette colonne.');
+        return;
+      }
 
-  const fftSize = Math.pow(2, Math.floor(Math.log2(values.length))); // doit être une puissance de 2
-  const fft = new FFT(fftSize, 256); // 256 = taux d’échantillonnage Hz
-  fft.forward(values.slice(0, fftSize));
+      // Calcul FFT sur les valeurs extraites
+      const fftSize = Math.pow(2, Math.floor(Math.log2(values.length))); // doit être une puissance de 2
+      const fft = new FFT(fftSize, 256); // 256 = taux d’échantillonnage Hz
+      fft.forward(values.slice(0, fftSize));
 
-  const freqs = fft.getBandFrequencyArray(); // tableau des fréquences (Hz)
-  const amps = fft.spectrum; // amplitudes normalisées (entre 0 et 1)
+      const freqs = fft.getBandFrequencyArray(); // tableau des fréquences (Hz)
+      const amps = fft.spectrum; // amplitudes normalisées (entre 0 et 1)
 
-  const data = [{
-    x: freqs,
-    y: amps,
-    type: 'scatter',
-    mode: 'lines',
-    name: 'Spectre de fréquence'
-  }];
-
-  const layout = {
-    title: 'Spectre de Fréquence',
-    xaxis: { title: 'Fréquence (Hz)' },
-    yaxis: { title: 'Amplitude' }
-  };
-
-  Plotly.newPlot(spectrogram, data, layout);
-});
-
-</script> 
-</body> 
+      // Afficher le graphique
+      const data = [{
+        x: freqs,
+        y: amps,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Spectre de fréquence'
+      }];
+      const layout = {
+        title: 'Spectre de Fréquence',
+        xaxis: { title: 'Fréquence (Hz)' },
+        yaxis: { title: 'Amplitude' }
+      };
+      Plotly.newPlot(spectrogram, data, layout);
+    });
+  </script>
+</body>
 </html>
