@@ -60,7 +60,9 @@
         disconnectBtn.addEventListener('click', async () => {
             if (port) {
                 try {
+                    // Fermer le port série
                     await port.close();
+                    // Désactivation des boutons et réactivation du bouton de connexion
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
                     saveBtn.disabled = true;
