@@ -253,7 +253,11 @@
       const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
       const values = allData.map(line => {
         const parts = line.split(";");
-        return parseFloat(parts[columnIndex]);
+        const value = parseFloat(parts[columnIndex]);
+        if (isNaN(value)) {
+          console.log(`Donnée invalide à la ligne : ${line}`);
+        }
+        return value;
       }).filter(value => !isNaN(value));
 
       // Afficher les valeurs extraites dans la console pour débogage
@@ -262,6 +266,7 @@
       // Vérification si nous avons des données
       if (values.length === 0) {
         console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
+        alert('Aucune donnée valide pour cette colonne.');
         return;
       }
 
@@ -274,6 +279,10 @@
       // Extraire les fréquences et amplitudes
       const freqs = fft.getFrequencyBins();
       const amps = fft.getMagnitudes(spectrum);
+
+      // Vérification des résultats FFT
+      console.log('Fréquences:', freqs);
+      console.log('Amplitudes:', amps);
 
       // Afficher le graphique
       const data = [{
