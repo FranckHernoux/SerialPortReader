@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Lecteur Port Série</title>
   <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fft-js@0.0.12/index.min.js" onerror="alert('Erreur de chargement de la bibliothèque FFT')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fft.js@0.3.0/dist/umd/fft.min.js" onerror="alert('Erreur de chargement de la bibliothèque FFT')"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -251,7 +251,7 @@
     // Fonction pour afficher le spectre de fréquence via FFT
     // Vérification si FFT est chargé
     function checkFFT() {
-      if (typeof FFT === "undefined") {
+      if (typeof window.FFT === "undefined") {
         console.error("La bibliothèque FFT n'est pas correctement chargée.");
         alert("La bibliothèque FFT n'est pas chargée. Vérifiez la connexion au CDN.");
         return false;
@@ -260,34 +260,47 @@
     }
 
     plotButton.addEventListener("click", () => {
-      if (!checkFFT()) return; // Vérification si FFT est chargée avant de continuer
+      if (!checkFFT()) return;
 
-      const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
+      const columnIndex = parseInt(columnSelect.value);
       const values = allData.map(line => {
         const parts = line.split(";");
         const value = parseFloat(parts[columnIndex]);
-        if (isNaN(value)) {
-          console.log(`Donnée invalide à la ligne : ${line}`);
-        }
-        return value;
-      }).filter(value => !isNaN(value));
+        return isNaN(value) ? null : value;
+      }).filter(v => v !== null);
 
       if (values.length === 0) {
-        console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
         alert('Aucune donnée valide pour cette colonne.');
         return;
       }
 
-      // Calcul FFT sur les valeurs extraites
+      const FFT = window.FFT;
       const fft = new FFT(values.length);
       const spectrum = fft.createComplexArray();
-      fft.realTransform(spectrum, values);
-      fft.completeSpectrum(spectrum);
+      const input = fft.createComplexArray();
 
-      const freqs = fft.getFrequencyBins();
-      const amps = fft.getMagnitudes(spectrum);
+      // Copie les valeurs réelles dans le tableau complexe
+      for (let i = 0; i < values.length; i++) {
+        input[2 * i] = values[i];     // partie réelle
+        input[2 * i + 1] = 0;         // partie imaginaire
+      }
 
-      // Afficher le graphique
+      fft.transform(spectrum, input);
+
+      // Calcul amplitude et fréquence simulée
+      const amps = [];
+      const freqs = [];
+      const sampleRate = 256; // à adapter selon ta source réelle
+      const binCount = values.length / 2;
+
+      for (let i = 0; i < binCount; i++) {
+        const re = spectrum[2 * i];
+        const im = spectrum[2 * i + 1];
+        const amplitude = Math.sqrt(re * re + im * im);
+        amps.push(amplitude);
+        freqs.push(i * sampleRate / values.length);
+      }
+
       const data = [{
         x: freqs,
         y: amps,
@@ -295,11 +308,13 @@
         mode: 'lines',
         name: 'Spectre de fréquence'
       }];
+
       const layout = {
         title: 'Spectre de Fréquence',
         xaxis: { title: 'Fréquence (Hz)' },
         yaxis: { title: 'Amplitude' }
       };
+
       Plotly.newPlot(spectrogram, data, layout);
     });
 </script> 
