@@ -5,6 +5,18 @@
   <title>Lecteur Port Série</title>
   <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/indutny/fft.js@master/dist/fft.js" onerror="alert('Erreur de chargement de la bibliothèque FFT')"></script>
+  <script>
+    // Injecter FFT dans l'espace global si elle est exposée sous un autre nom
+    if (typeof FFT === "undefined") {
+      for (let key in window) {
+        if (window[key] && typeof window[key] === "function" && window[key].name === "FFT") {
+          window.FFT = window[key];
+          console.log("FFT détectée comme window." + key);
+          break;
+        }
+      }
+    }
+  </script>
   <style>
     body {
       font-family: sans-serif;
