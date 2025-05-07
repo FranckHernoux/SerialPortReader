@@ -103,7 +103,7 @@
         port = null;
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
-        saveBtn.disabled = true;
+        saveBtn.disabled = recordedData.trim() === "";
 
         console.log("Déconnecté avec succès.");
       } catch (err) {
