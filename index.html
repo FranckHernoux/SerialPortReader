@@ -14,10 +14,11 @@
             width: 100%;
             height: 300px;
             border: 1px solid #ccc;
-            overflow-y: auto;  /* Assure que la barre de défilement est activée quand nécessaire */
+            overflow-y: auto; /* Assurer que la barre de défilement s'affiche quand nécessaire */
             white-space: pre-wrap;
             padding: 10px;
             background-color: #f9f9f9;
+            display: block;
         }
 
         button {
@@ -26,6 +27,24 @@
 
         #toggleAutoScrollBtn {
             margin-top: 10px;
+        }
+
+        /* Pour la barre de défilement */
+        #dataContainer::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        #dataContainer::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        #dataContainer::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 5px;
+        }
+
+        #dataContainer::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
     </style>
 </head>
@@ -84,6 +103,7 @@
                 try {
                     // Fermer le port série
                     await port.close();
+                    port = null; // Réinitialiser la variable du port
                     // Désactivation des boutons et réactivation du bouton de connexion
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
