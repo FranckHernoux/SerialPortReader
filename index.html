@@ -9,6 +9,20 @@
             width: 200px;
             font-size: 16px;
         }
+
+        #dataContainer {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            white-space: pre-wrap;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        button {
+            margin: 5px;
+        }
     </style>
 </head>
 <body>
@@ -26,16 +40,20 @@
     <br><br>
     <div id="dataContainer"></div>
     <button id="saveBtn" disabled>Télécharger les données</button>
+    <br><br>
+    <button id="toggleAutoScrollBtn">Activer défilement auto</button>
 
     <script>
         let port; // Variable pour le port série
         let isRecording = false; // Flag pour savoir si on enregistre
         let recordedData = ''; // Données enregistrées
+        let autoScrollEnabled = true; // Flag pour savoir si le défilement automatique est activé
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const baudRateSelect = document.getElementById('baudRate');
         const dataContainer = document.getElementById('dataContainer');
         const saveBtn = document.getElementById('saveBtn');
+        const toggleAutoScrollBtn = document.getElementById('toggleAutoScrollBtn');
 
         // Forcer le baudrate par défaut à 115200
         baudRateSelect.value = "115200";
@@ -95,6 +113,11 @@
                     if (isRecording) {
                         recordedData += text;
                     }
+
+                    // Gérer le défilement automatique
+                    if (autoScrollEnabled) {
+                        dataContainer.scrollTop = dataContainer.scrollHeight;
+                    }
                 }
             } catch (error) {
                 console.error('Erreur de lecture des données :', error);
@@ -110,6 +133,12 @@
             link.href = URL.createObjectURL(blob);
             link.download = 'données_serie.txt'; // Nom du fichier
             link.click();
+        });
+
+        // Fonction pour activer/désactiver le défilement automatique
+        toggleAutoScrollBtn.addEventListener('click', () => {
+            autoScrollEnabled = !autoScrollEnabled;
+            toggleAutoScrollBtn.innerText = autoScrollEnabled ? "Désactiver défilement auto" : "Activer défilement auto";
         });
     </script>
 </body>
