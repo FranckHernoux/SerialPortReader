@@ -77,7 +77,7 @@
 
   <!-- Actions sous les données -->
   <div class="actions">
-    <button id="clearDataBtn">Effacer les données</button>
+    <button id="clearDataBtn">Effacer les données de l'affichage</button>
     <label>
       <input type="checkbox" id="scrollToggle" checked>
       Scroll automatique
@@ -213,12 +213,11 @@
       allDataContainer.scrollTop = allDataContainer.scrollHeight;
     });
 
+    // Effacer les données de l'affichage sans affecter recordedData
     clearDataBtn.addEventListener("click", () => {
-      recordedData = "";
-      saveBtn.disabled = true;
-      allDataContainer.style.display = "none";
-      allDataContainer.textContent = "";
-      alert("Données enregistrées effacées.");
+      displayedLines = [];  // Vider l'affichage
+      dataContainer.textContent = "";  // Effacer l'encadré
+      alert("Données de l'affichage effacées.");
     });
   </script>
 </body>
