@@ -2,40 +2,103 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Serial Port Reader</title>
-  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.15.0/dist/plotly.min.js"></script>
+  <title>Lecteur Port Série</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fft.js/dist/fft.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    #dataContainer { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: auto; width: 100%; }
-    #chart { height: 400px; width: 100%; }
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    .control-panel {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    #dataContainer {
+      width: 100%;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background-color: #f9f9f9;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+    #allDataContainer {
+      width: 100%;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background-color: #eef6ff;
+      margin-top: 10px;
+      box-sizing: border-box;
+      display: none;
+    }
+    button, select, label {
+      margin: 5px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    #spectrogram {
+      width: 100%;
+      height: 400px;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
+  <h2>Lecteur Port Série Web</h2>
 
-  <h1>Port Série et Analyse de Fréquences</h1>
+  <!-- Panel de contrôle -->
+  <div class="control-panel">
+    <button id="connectBtn">Choisir un port série</button>
+    <button id="disconnectBtn" disabled>Déconnecter</button>
 
-  <!-- Sélectionner un port série et un baudrate -->
-  <div>
-    <label for="baudrateSelect">Baudrate : </label>
+    <label for="baudrateSelect">Baudrate :</label>
     <select id="baudrateSelect">
       <option value="9600">9600</option>
-      <option value="115200">115200</option>
-      <option value="250000">250000</option>
+      <option value="19200">19200</option>
+      <option value="38400">38400</option>
+      <option value="57600">57600</option>
+      <option value="115200" selected>115200</option>
     </select>
-
-    <label for="portSelect">Port série : </label>
-    <select id="portSelect"></select>
-
-    <button id="connectBtn">Connecter</button>
-    <button id="disconnectBtn" disabled>Déconnecter</button>
   </div>
 
-  <br/>
+  <!-- Affichage des données reçues -->
+  <div id="dataContainer"></div>
 
-  <!-- Affichage des données -->
+  <!-- Actions sous les données -->
+  <div class="actions">
+    <button id="clearDataBtn">Effacer les données de l'affichage</button>
+    <label>
+      <input type="checkbox" id="scrollToggle" checked>
+      Scroll automatique
+    </label>
+    <button id="saveBtn" disabled>Télécharger les données</button>
+  </div>
+
+  <!-- Affichage de toutes les données -->
+  <button id="showAllBtn">Afficher toutes les données enregistrées</button>
+  <div id="allDataContainer"></div>
+
+  <!-- Sélection de la colonne pour le graphique -->
   <div>
-    <label for="columnSelect">Sélectionner une colonne :</label>
+    <label for="columnSelect">Sélectionnez une colonne :</label>
     <select id="columnSelect">
       <option value="0">Colonne 1 (Index 0)</option>
       <option value="1">Colonne 2 (Index 1)</option>
@@ -44,122 +107,179 @@
       <option value="4">Colonne 5 (Index 4)</option>
       <option value="5">Colonne 6 (Index 5)</option>
     </select>
+    <button id="plotButton">Afficher le spectre de fréquence</button>
   </div>
 
-  <!-- Données affichées -->
-  <div id="dataContainer"></div>
-
-  <!-- Boutons -->
-  <div>
-    <button id="clearDataBtn">Effacer les données</button>
-    <button id="plotBtn">Afficher le spectre de fréquence</button>
-  </div>
-
-  <!-- Graphique -->
-  <div id="chart"></div>
+  <!-- Graphique de spectrométrie -->
+  <div id="spectrogram"></div>
 
   <script>
-    let allData = []; // Stocke toutes les données reçues
-    let autoScroll = true; // Variable pour activer/désactiver le défilement automatique
-    let serialPort = null; // Port série
+    let port, reader;
+    let keepReading = false;
+    let isRecording = false;
+    let recordedData = "";
+    let displayedLines = [];
+    let autoScrollEnabled = true;
+    let allData = [];
 
-    // Fonction pour ajouter des données à la liste
-    function addData(data) {
-      allData.push(data);
-      if (autoScroll) {
-        // Affichage des dernières données dans le conteneur
-        const dataContainer = document.getElementById('dataContainer');
-        dataContainer.innerHTML += `${data.join(' ')}<br>`;
-        dataContainer.scrollTop = dataContainer.scrollHeight;
+    const connectBtn = document.getElementById("connectBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+    const baudrateSelect = document.getElementById("baudrateSelect");
+    const saveBtn = document.getElementById("saveBtn");
+    const scrollToggle = document.getElementById("scrollToggle");
+    const dataContainer = document.getElementById("dataContainer");
+    const allDataContainer = document.getElementById("allDataContainer");
+    const showAllBtn = document.getElementById("showAllBtn");
+    const clearDataBtn = document.getElementById("clearDataBtn");
+    const columnSelect = document.getElementById("columnSelect");
+    const plotButton = document.getElementById("plotButton");
+    const spectrogram = document.getElementById("spectrogram");
+
+    connectBtn.addEventListener("click", async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: parseInt(baudrateSelect.value) });
+        reader = port.readable.getReader();
+        keepReading = true;
+        readLoop();
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        saveBtn.disabled = recordedData.trim() === "";
+      } catch (err) {
+        console.error("Erreur connexion série :", err);
+        alert("Erreur connexion série : " + err.message);
+      }
+    });
+
+    disconnectBtn.addEventListener("click", async () => {
+      keepReading = false;
+      if (reader) {
+        try {
+          await reader.cancel();
+          await reader.releaseLock();
+        } catch (err) {
+          console.error("Erreur lors de la déconnexion :", err);
+        }
+      }
+      if (port) {
+        try {
+          await port.close();
+        } catch (err) {
+          console.error("Erreur fermeture du port :", err);
+        }
+      }
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      saveBtn.disabled = recordedData.trim() === "";
+    });
+
+    scrollToggle.addEventListener("change", () => {
+      autoScrollEnabled = scrollToggle.checked;
+    });
+
+    async function readLoop() {
+      const textDecoder = new TextDecoder();
+      let buffer = "";
+
+      while (keepReading && reader) {
+        try {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += textDecoder.decode(value, { stream: true });
+          let lines = buffer.split(/\r?\n/);
+          buffer = lines.pop();
+
+          for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+
+            if (!isRecording && line.includes("everything is ok")) {
+              isRecording = true;
+              recordedData = "";
+              continue;
+            }
+
+            if (isRecording) {
+              recordedData += line + "\n";
+              saveBtn.disabled = false;
+            }
+
+            displayedLines.push(line);
+            allData.push(line);  // Stocker toutes les données pour traitement spectrométrique
+            if (displayedLines.length > 300) {
+              displayedLines.shift();
+            }
+
+            dataContainer.textContent = displayedLines.join("\n");
+            if (autoScrollEnabled) {
+              dataContainer.scrollTop = dataContainer.scrollHeight;
+            }
+          }
+        } catch (err) {
+          console.error("Erreur lecture série :", err);
+          break;
+        }
       }
     }
 
-    // Connexion au port série
-    document.getElementById('connectBtn').addEventListener('click', async () => {
-      // Connexion au port série via Web Serial API (implémentation simplifiée)
-      try {
-        const port = await navigator.serial.requestPort();
-        await port.open({ baudRate: parseInt(document.getElementById('baudrateSelect').value) });
-        serialPort = port;
-
-        document.getElementById('connectBtn').disabled = true;
-        document.getElementById('disconnectBtn').disabled = false;
-
-        // Lecture des données du port série (implémentation simplifiée)
-        const reader = port.readable.getReader();
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          const receivedData = new TextDecoder().decode(value);
-          const data = receivedData.split('\n').map(line => line.split(';'));
-          data.forEach(addData);
-        }
-      } catch (error) {
-        console.error('Erreur de connexion au port série:', error);
-      }
+    saveBtn.addEventListener("click", () => {
+      const blob = new Blob([recordedData], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "donnees.txt";
+      link.click();
+      URL.revokeObjectURL(url);
     });
 
-    // Déconnexion du port série
-    document.getElementById('disconnectBtn').addEventListener('click', () => {
-      if (serialPort) {
-        serialPort.close();
-        serialPort = null;
-        document.getElementById('connectBtn').disabled = false;
-        document.getElementById('disconnectBtn').disabled = true;
-      }
-    });
-
-    // Effacer les données de l'affichage
-    document.getElementById('clearDataBtn').addEventListener('click', () => {
-      document.getElementById('dataContainer').innerHTML = '';
-    });
-
-    // Afficher le spectre de fréquence
-    document.getElementById('plotBtn').addEventListener('click', () => {
-      const columnIndex = parseInt(document.getElementById('columnSelect').value);
-      const dataColumn = allData.map(data => parseFloat(data[columnIndex])).filter(value => !isNaN(value));
-
-      if (dataColumn.length === 0) {
-        alert('Aucune donnée valide dans cette colonne.');
+    showAllBtn.addEventListener("click", () => {
+      if (recordedData.trim() === "") {
+        alert("Aucune donnée enregistrée à afficher.");
         return;
       }
+      allDataContainer.style.display = "block";
+      allDataContainer.textContent = recordedData;
+      allDataContainer.scrollTop = allDataContainer.scrollHeight;
+    });
 
-      // Calcul de la FFT (Transformée de Fourier)
-      const fftData = fft(dataColumn);
-      const freqs = fftData.map((value, index) => index * 256 / dataColumn.length); // Fréquences correspondantes à la FFT
-      const magnitudes = fftData.map(value => Math.abs(value));
+    // Effacer les données de l'affichage sans affecter recordedData
+    clearDataBtn.addEventListener("click", () => {
+      displayedLines = [];  // Vider l'affichage
+      dataContainer.textContent = "";  // Effacer l'encadré
+    });
 
-      // Affichage du graphique
-      const trace = {
+    // Fonction pour afficher le spectre de fréquence via FFT
+    plotButton.addEventListener("click", () => {
+      const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
+      const values = allData.map(line => {
+        const parts = line.split(";");
+        return parseFloat(parts[columnIndex]);
+      }).filter(value => !isNaN(value));
+
+      const fft = new FFT(values.length);
+      const spectrum = fft.createComplexArray();
+      fft.realTransform(spectrum, values);
+      fft.completeSpectrum(spectrum);
+
+      // Extraire les fréquences et amplitudes
+      const freqs = fft.getFrequencyBins();
+      const amps = fft.getMagnitudes(spectrum);
+
+      // Afficher le graphique
+      const data = [{
         x: freqs,
-        y: magnitudes,
+        y: amps,
         type: 'scatter',
         mode: 'lines',
         name: 'Spectre de fréquence'
-      };
-
+      }];
       const layout = {
-        title: 'Spectre de fréquence',
+        title: 'Spectre de Fréquence',
         xaxis: { title: 'Fréquence (Hz)' },
-        yaxis: { title: 'Amplitude' },
+        yaxis: { title: 'Amplitude' }
       };
-
-      Plotly.newPlot('chart', [trace], layout);
+      Plotly.newPlot(spectrogram, data, layout);
     });
-
-    // Fonction FFT (transformée de Fourier)
-    function fft(inputData) {
-      const N = inputData.length;
-      const result = new Array(N);
-      for (let k = 0; k < N; k++) {
-        result[k] = 0;
-        for (let n = 0; n < N; n++) {
-          result[k] += inputData[n] * Math.cos((2 * Math.PI * k * n) / N) - inputData[n] * Math.sin((2 * Math.PI * k * n) / N);
-        }
-      }
-      return result;
-    }
   </script>
 </body>
 </html>
