@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lecteur Port Série</title>
+    <style>
+        select {
+            width: 200px;
+            font-size: 16px;
+        }
+    </style>
 </head>
 <body>
     <h1>Lecteur Port Série</h1>
@@ -13,7 +19,7 @@
     <label for="baudRate">Choisir le Baudrate :</label>
     <select id="baudRate">
         <option value="9600">9600</option>
-        <option value="115200">115200</option>
+        <option value="115200" selected>115200</option>
         <option value="256000">256000</option>
         <option value="500000">500000</option>
     </select>
