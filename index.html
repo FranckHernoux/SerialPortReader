@@ -262,8 +262,15 @@
       fft.completeSpectrum(spectrum);
 
       // Extraire les fréquences et amplitudes
-      const freqs = fft.getFrequencyBins();
-      const amps = fft.getMagnitudes(spectrum);
+      const freqs = [];
+      for (let i = 0; i < values.length / 2; i++) {
+        freqs.push(i * (44100 / values.length)); // Si l'échantillonnage est à 44.1kHz, ajustez selon votre taux d'échantillonnage
+      }
+
+      const amps = [];
+      for (let i = 0; i < values.length / 2; i++) {
+        amps.push(Math.sqrt(spectrum[2 * i] ** 2 + spectrum[2 * i + 1] ** 2));
+      }
 
       // Afficher le graphique
       const data = [{
