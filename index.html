@@ -249,45 +249,48 @@
     });
 
     plotButton.addEventListener("click", () => {
-      const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
-      const values = allData.map(line => {
-        const parts = line.split(";");
-        const value = parseFloat(parts[columnIndex]);
-        if (isNaN(value)) {
-          console.log(`Donnée invalide à la ligne : ${line}`);
-        }
-        return value;
-      }).filter(value => !isNaN(value));
-
-      if (values.length === 0) {
-        console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
-        alert('Aucune donnée valide pour cette colonne.');
-        return;
+    const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
+    const values = allData.map(line => {
+      const parts = line.split(";");
+      const value = parseFloat(parts[columnIndex]);
+      if (isNaN(value)) {
+        console.log(`Donnée invalide à la ligne : ${line}`);
       }
-
-      // Calcul FFT sur les valeurs extraites
-      const fftSize = Math.pow(2, Math.floor(Math.log2(values.length))); // doit être une puissance de 2
-      const fft = new FFT(fftSize, 256); // 256 = taux d’échantillonnage Hz
-      fft.forward(values.slice(0, fftSize));
-
-      const freqs = fft.getBandFrequencyArray(); // tableau des fréquences (Hz)
-      const amps = fft.spectrum; // amplitudes normalisées (entre 0 et 1)
-
-      // Afficher le graphique
-      const data = [{
-        x: freqs,
-        y: amps,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Spectre de fréquence'
-      }];
-      const layout = {
-        title: 'Spectre de Fréquence',
-        xaxis: { title: 'Fréquence (Hz)' },
-        yaxis: { title: 'Amplitude' }
-      };
-      Plotly.newPlot(spectrogram, data, layout);
-    });
+      return value;
+    }).filter(value => !isNaN(value));
+  
+    if (values.length === 0) {
+      console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
+      alert('Aucune donnée valide pour cette colonne.');
+      return;
+    }
+  
+    // Calcul FFT sur les valeurs extraites
+    const fftSize = Math.pow(2, Math.floor(Math.log2(values.length))); // doit être une puissance de 2
+    const fft = new FFT(fftSize, 256); // 256 = taux d’échantillonnage Hz
+    fft.forward(values.slice(0, fftSize));
+  
+    // Calcul des fréquences
+    const sampleRate = 256; // Fréquence d'échantillonnage en Hz (doit correspondre à ton système)
+    const freqs = Array.from({ length: fftSize / 2 }, (_, i) => (i * sampleRate) / fftSize);
+  
+    const amps = fft.spectrum.slice(0, fftSize / 2); // Prendre uniquement la moitié positive du spectre
+  
+    // Afficher le graphique
+    const data = [{
+      x: freqs,
+      y: amps,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Spectre de fréquence'
+    }];
+    const layout = {
+      title: 'Spectre de Fréquence',
+      xaxis: { title: 'Fréquence (Hz)' },
+      yaxis: { title: 'Amplitude' }
+    };
+    Plotly.newPlot(spectrogram, data, layout);
+  });
   </script>
 </body>
 </html>
