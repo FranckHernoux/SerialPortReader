@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Lecteur Port Série</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fft.js/dist/fft.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fft.js@0.4.0/dist/fft.min.js"></script>  
   <style>
     body {
       font-family: sans-serif;
@@ -250,6 +250,13 @@
 
     // Fonction pour afficher le spectre de fréquence via FFT
     plotButton.addEventListener("click", () => {
+      // Vérification si FFT est bien définie
+      if (typeof FFT === "undefined") {
+        console.error("La bibliothèque FFT n'est pas correctement chargée.");
+        alert("La bibliothèque FFT n'est pas chargée. Vérifiez la connexion au CDN.");
+        return;
+      }
+
       const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
       const values = allData.map(line => {
         const parts = line.split(";");
