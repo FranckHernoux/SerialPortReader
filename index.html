@@ -249,13 +249,18 @@
     });
 
     // Fonction pour afficher le spectre de fréquence via FFT
-    plotButton.addEventListener("click", () => {
-      // Vérification si FFT est bien définie
+    // Vérification si FFT est chargé
+    function checkFFT() {
       if (typeof FFT === "undefined") {
         console.error("La bibliothèque FFT n'est pas correctement chargée.");
         alert("La bibliothèque FFT n'est pas chargée. Vérifiez la connexion au CDN.");
-        return;
+        return false;
       }
+      return true;
+    }
+
+    plotButton.addEventListener("click", () => {
+      if (!checkFFT()) return; // Vérification si FFT est chargée avant de continuer
 
       const columnIndex = parseInt(columnSelect.value); // Index de la colonne sélectionnée
       const values = allData.map(line => {
@@ -267,10 +272,6 @@
         return value;
       }).filter(value => !isNaN(value));
 
-      // Afficher les valeurs extraites dans la console pour débogage
-      console.log('Données extraites pour la colonne ' + columnIndex + ':', values);
-
-      // Vérification si nous avons des données
       if (values.length === 0) {
         console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
         alert('Aucune donnée valide pour cette colonne.');
@@ -283,13 +284,8 @@
       fft.realTransform(spectrum, values);
       fft.completeSpectrum(spectrum);
 
-      // Extraire les fréquences et amplitudes
       const freqs = fft.getFrequencyBins();
       const amps = fft.getMagnitudes(spectrum);
-
-      // Vérification des résultats FFT
-      console.log('Fréquences:', freqs);
-      console.log('Amplitudes:', amps);
 
       // Afficher le graphique
       const data = [{
