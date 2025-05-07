@@ -19,7 +19,7 @@
     <label for="baudRate">Choisir le Baudrate :</label>
     <select id="baudRate">
         <option value="9600">9600</option>
-        <option value="115200" selected>115200</option>
+        <option value="115200">115200</option>
         <option value="256000">256000</option>
         <option value="500000">500000</option>
     </select>
@@ -36,6 +36,9 @@
         const baudRateSelect = document.getElementById('baudRate');
         const dataContainer = document.getElementById('dataContainer');
         const saveBtn = document.getElementById('saveBtn');
+
+        // Forcer le baudrate par défaut à 115200
+        baudRateSelect.value = "115200";
 
         // Fonction pour choisir et se connecter au port série
         connectBtn.addEventListener('click', async () => {
