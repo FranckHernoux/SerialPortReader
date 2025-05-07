@@ -1,146 +1,151 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Lecteur Port Série</title>
   <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
     #dataContainer {
       width: 100%;
-      max-width: 100%;
       height: 300px;
-      overflow-y: scroll;
-      overflow-x: hidden;
+      overflow-y: auto;
+      white-space: pre-wrap;
       border: 1px solid #ccc;
       padding: 10px;
-      background: #f9f9f9;
-      white-space: pre-wrap;
-      font-family: monospace;
+      background-color: #f9f9f9;
       box-sizing: border-box;
     }
-    button {
-      margin: 5px;
-    }
-    body {
-      max-width: 800px;
-      margin: auto;
-      padding: 20px;
+    #allDataContainer {
+      width: 100%;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background-color: #eef6ff;
+      margin-top: 10px;
+      box-sizing: border-box;
     }
   </style>
 </head>
 <body>
-  <h1>Lecteur Port Série</h1>
-
+  <h2>Lecteur Port Série Web</h2>
   <button id="connectBtn">Choisir un port série</button>
-  <button id="disconnectBtn" disabled>Déconnecter</button><br /><br />
-
-  <label for="baudRate">Baudrate :</label>
-  <select id="baudRate">
+  <button id="disconnectBtn" disabled>Déconnecter</button>
+  <label for="baudrateSelect">Baudrate:</label>
+  <select id="baudrateSelect">
     <option value="9600">9600</option>
+    <option value="19200">19200</option>
+    <option value="38400">38400</option>
+    <option value="57600">57600</option>
     <option value="115200" selected>115200</option>
-    <option value="256000">256000</option>
-    <option value="500000">500000</option>
-  </select><br /><br />
+  </select>
+  <button id="saveBtn" disabled>Télécharger les données</button>
+  <button id="showAllBtn">Afficher toutes les données enregistrées</button>
+  <button id="clearDataBtn">Effacer les données enregistrées</button>
+  <label>
+    <input type="checkbox" id="scrollToggle" checked>
+    Scroll automatique
+  </label>
 
   <div id="dataContainer"></div>
-
-  <button id="saveBtn" disabled>Télécharger les données</button>
-  <button id="toggleAutoScrollBtn">Désactiver défilement auto</button>
+  <div id="allDataContainer" style="display:none;"></div>
 
   <script>
-    let port = null;
-    let reader = null;
+    let port, reader;
     let keepReading = false;
     let isRecording = false;
-    let recordedData = "";  // Toutes les données enregistrées
-    let autoScrollEnabled = true;
-    
-    // Tableau pour ne garder que les 300 dernières lignes pour l'affichage
+    let recordedData = "";
     let displayedLines = [];
-    
+    let autoScrollEnabled = true;
+
     const connectBtn = document.getElementById("connectBtn");
     const disconnectBtn = document.getElementById("disconnectBtn");
-    const baudRateSelect = document.getElementById("baudRate");
-    const dataContainer = document.getElementById("dataContainer");
+    const baudrateSelect = document.getElementById("baudrateSelect");
     const saveBtn = document.getElementById("saveBtn");
-    const toggleScrollBtn = document.getElementById("toggleAutoScrollBtn");
-
-    // Gestion du bouton de défilement auto
-    toggleScrollBtn.addEventListener("click", () => {
-      autoScrollEnabled = !autoScrollEnabled;
-      toggleScrollBtn.textContent = autoScrollEnabled
-        ? "Désactiver défilement auto"
-        : "Activer défilement auto";
-    });
+    const scrollToggle = document.getElementById("scrollToggle");
+    const dataContainer = document.getElementById("dataContainer");
+    const showAllBtn = document.getElementById("showAllBtn");
+    const allDataContainer = document.getElementById("allDataContainer");
+    const clearDataBtn = document.getElementById("clearDataBtn");
 
     connectBtn.addEventListener("click", async () => {
       try {
         port = await navigator.serial.requestPort();
-        await port.open({ baudRate: parseInt(baudRateSelect.value) });
+        await port.open({ baudRate: parseInt(baudrateSelect.value) });
         reader = port.readable.getReader();
-        connectBtn.disabled = true;
-        disconnectBtn.disabled = false;
-        saveBtn.disabled = false;
         keepReading = true;
         readLoop();
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        saveBtn.disabled = recordedData.trim() === "";
       } catch (err) {
-        console.error("Erreur de connexion :", err);
+        console.error("Erreur connexion série :", err);
+        alert("Erreur connexion série : " + err.message);
       }
     });
 
     disconnectBtn.addEventListener("click", async () => {
-      try {
-        keepReading = false;
-        if (reader) {
+      keepReading = false;
+      if (reader) {
+        try {
           await reader.cancel();
           await reader.releaseLock();
-          reader = null;
+        } catch (err) {
+          console.error("Erreur lors de la déconnexion :", err);
         }
-        if (port && port.readable) {
-          await port.close();
-        }
-        port = null;
-        connectBtn.disabled = false;
-        disconnectBtn.disabled = true;
-        // On ne désactive PAS le bouton téléchargement : 
-        // on veut conserver la possibilité de télécharger les données déjà enregistrées.
-        console.log("Déconnecté avec succès.");
-      } catch (err) {
-        console.error("Erreur lors de la déconnexion :", err);
       }
+      if (port) {
+        try {
+          await port.close();
+        } catch (err) {
+          console.error("Erreur fermeture du port :", err);
+        }
+      }
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      saveBtn.disabled = recordedData.trim() === "";
+    });
+
+    scrollToggle.addEventListener("change", () => {
+      autoScrollEnabled = scrollToggle.checked;
     });
 
     async function readLoop() {
       const textDecoder = new TextDecoder();
       let buffer = "";
+
       while (keepReading && reader) {
         try {
           const { value, done } = await reader.read();
           if (done) break;
           buffer += textDecoder.decode(value, { stream: true });
-          // Découpage par ligne (en conservant la dernière ligne incomplète dans buffer)
           let lines = buffer.split(/\r?\n/);
-          buffer = lines.pop(); 
+          buffer = lines.pop();
+
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
 
-            // Enregistrement complet dans recordedData
-            // Ne commence l'enregistrement qu'après avoir reçu "everything is ok"
             if (!isRecording && line.includes("everything is ok")) {
               isRecording = true;
-              recordedData = ""; // Réinitialise pour n'enregistrer que à partir de ce point
-              // On ne stocke pas la ligne contenant "everything is ok"
+              recordedData = "";
               continue;
             }
+
             if (isRecording) {
               recordedData += line + "\n";
+              saveBtn.disabled = false;
             }
 
-            // Gestion de l'affichage : on conserve 300 dernières lignes
             displayedLines.push(line);
             if (displayedLines.length > 300) {
               displayedLines.shift();
             }
+
             dataContainer.textContent = displayedLines.join("\n");
             if (autoScrollEnabled) {
               dataContainer.scrollTop = dataContainer.scrollHeight;
@@ -161,6 +166,24 @@
       link.download = "donnees.txt";
       link.click();
       URL.revokeObjectURL(url);
+    });
+
+    showAllBtn.addEventListener("click", () => {
+      if (recordedData.trim() === "") {
+        alert("Aucune donnée enregistrée à afficher.");
+        return;
+      }
+      allDataContainer.style.display = "block";
+      allDataContainer.textContent = recordedData;
+      allDataContainer.scrollTop = allDataContainer.scrollHeight;
+    });
+
+    clearDataBtn.addEventListener("click", () => {
+      recordedData = "";
+      saveBtn.disabled = true;
+      allDataContainer.style.display = "none";
+      allDataContainer.textContent = "";
+      alert("Données enregistrées effacées.");
     });
   </script>
 </body>
