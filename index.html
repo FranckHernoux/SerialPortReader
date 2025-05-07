@@ -4,19 +4,7 @@
   <meta charset="UTF-8">
   <title>Lecteur Port Série</title>
   <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/indutny/fft.js@master/dist/fft.js" onerror="alert('Erreur de chargement de la bibliothèque FFT')"></script>
-  <script>
-    // Injecter FFT dans l'espace global si elle est exposée sous un autre nom
-    if (typeof FFT === "undefined") {
-      for (let key in window) {
-        if (window[key] && typeof window[key] === "function" && window[key].name === "FFT") {
-          window.FFT = window[key];
-          console.log("FFT détectée comme window." + key);
-          break;
-        }
-      }
-    }
-  </script>
+  <script src="https://cdn.jsdelivr.net/gh/corbanbrook/dsp.js/dsp.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -260,77 +248,43 @@
       dataContainer.textContent = "";  // Effacer l'encadré
     });
 
-    // Fonction pour afficher le spectre de fréquence via FFT
-    // Vérification si FFT est chargé
-    function checkFFT() {
-      try {
-        const test = new FFT(8);
-        return true;
-      } catch (e) {
-        console.error("FFT non disponible :", e);
-        alert("La bibliothèque FFT n'est pas chargée ou incompatible.");
-        return false;
-      }
-    }
-
     plotButton.addEventListener("click", () => {
-      if (!checkFFT()) return;
+  const columnIndex = parseInt(columnSelect.value);
+  const values = allData.map(line => {
+    const parts = line.split(";");
+    const value = parseFloat(parts[columnIndex]);
+    return isNaN(value) ? null : value;
+  }).filter(v => v !== null);
 
-      const columnIndex = parseInt(columnSelect.value);
-      const values = allData.map(line => {
-        const parts = line.split(";");
-        const value = parseFloat(parts[columnIndex]);
-        return isNaN(value) ? null : value;
-      }).filter(v => v !== null);
+  if (values.length === 0) {
+    alert("Aucune donnée valide pour cette colonne.");
+    return;
+  }
 
-      if (values.length === 0) {
-        alert('Aucune donnée valide pour cette colonne.');
-        return;
-      }
+  const fftSize = Math.pow(2, Math.floor(Math.log2(values.length))); // doit être une puissance de 2
+  const fft = new FFT(fftSize, 256); // 256 = taux d’échantillonnage Hz
+  fft.forward(values.slice(0, fftSize));
 
-      const FFT = window.FFT;
-      const fft = new FFT(values.length);
-      const spectrum = fft.createComplexArray();
-      const input = fft.createComplexArray();
+  const freqs = fft.getBandFrequencyArray(); // tableau des fréquences (Hz)
+  const amps = fft.spectrum; // amplitudes normalisées (entre 0 et 1)
 
-      // Copie les valeurs réelles dans le tableau complexe
-      for (let i = 0; i < values.length; i++) {
-        input[2 * i] = values[i];     // partie réelle
-        input[2 * i + 1] = 0;         // partie imaginaire
-      }
+  const data = [{
+    x: freqs,
+    y: amps,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'Spectre de fréquence'
+  }];
 
-      fft.transform(spectrum, input);
+  const layout = {
+    title: 'Spectre de Fréquence',
+    xaxis: { title: 'Fréquence (Hz)' },
+    yaxis: { title: 'Amplitude' }
+  };
 
-      // Calcul amplitude et fréquence simulée
-      const amps = [];
-      const freqs = [];
-      const sampleRate = 256; // à adapter selon ta source réelle
-      const binCount = values.length / 2;
+  Plotly.newPlot(spectrogram, data, layout);
+});
 
-      for (let i = 0; i < binCount; i++) {
-        const re = spectrum[2 * i];
-        const im = spectrum[2 * i + 1];
-        const amplitude = Math.sqrt(re * re + im * im);
-        amps.push(amplitude);
-        freqs.push(i * sampleRate / values.length);
-      }
-
-      const data = [{
-        x: freqs,
-        y: amps,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Spectre de fréquence'
-      }];
-
-      const layout = {
-        title: 'Spectre de Fréquence',
-        xaxis: { title: 'Fréquence (Hz)' },
-        yaxis: { title: 'Amplitude' }
-      };
-
-      Plotly.newPlot(spectrogram, data, layout);
-    });
 </script> 
 </body> 
 </html>
