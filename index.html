@@ -256,21 +256,24 @@
         return parseFloat(parts[columnIndex]);
       }).filter(value => !isNaN(value));
 
+      // Afficher les valeurs extraites dans la console pour débogage
+      console.log('Données extraites pour la colonne ' + columnIndex + ':', values);
+
+      // Vérification si nous avons des données
+      if (values.length === 0) {
+        console.log('Aucune donnée valide extraite pour la colonne ' + columnIndex);
+        return;
+      }
+
+      // Calcul FFT sur les valeurs extraites
       const fft = new FFT(values.length);
       const spectrum = fft.createComplexArray();
       fft.realTransform(spectrum, values);
       fft.completeSpectrum(spectrum);
 
       // Extraire les fréquences et amplitudes
-      const freqs = [];
-      for (let i = 0; i < values.length / 2; i++) {
-        freqs.push(i * (44100 / values.length)); // Si l'échantillonnage est à 44.1kHz, ajustez selon votre taux d'échantillonnage
-      }
-
-      const amps = [];
-      for (let i = 0; i < values.length / 2; i++) {
-        amps.push(Math.sqrt(spectrum[2 * i] ** 2 + spectrum[2 * i + 1] ** 2));
-      }
+      const freqs = fft.getFrequencyBins();
+      const amps = fft.getMagnitudes(spectrum);
 
       // Afficher le graphique
       const data = [{
@@ -287,6 +290,6 @@
       };
       Plotly.newPlot(spectrogram, data, layout);
     });
-  </script>
-</body>
+</script> 
+</body> 
 </html>
