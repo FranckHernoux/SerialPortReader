@@ -1,169 +1,149 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lecteur Port Série</title>
-    <style>
-        select {
-            width: 200px;
-            font-size: 16px;
-        }
-
-        #dataContainer {
-            width: 100%;
-            height: 300px;
-            border: 1px solid #ccc;
-            overflow-y: auto; /* Assurer que la barre de défilement s'affiche quand nécessaire */
-            white-space: pre-wrap;
-            padding: 10px;
-            background-color: #f9f9f9;
-            display: block;
-        }
-
-        button {
-            margin: 5px;
-        }
-
-        #toggleAutoScrollBtn {
-            margin-top: 10px;
-        }
-
-        /* Pour la barre de défilement */
-        #dataContainer::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        #dataContainer::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        #dataContainer::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 5px;
-        }
-
-        #dataContainer::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>Lecteur Port Série</title>
+  <style>
+    #dataContainer {
+      width: 100%;
+      height: 300px;
+      overflow-y: scroll;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: #f9f9f9;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+    button {
+      margin: 5px;
+    }
+  </style>
 </head>
 <body>
-    <h1>Lecteur Port Série</h1>
-    <button id="connectBtn">Choisir un port série</button>
-    <button id="disconnectBtn" disabled>Déconnecter</button>
-    <br><br>
-    <label for="baudRate">Choisir le Baudrate :</label>
-    <select id="baudRate">
-        <option value="9600">9600</option>
-        <option value="115200">115200</option>
-        <option value="256000">256000</option>
-        <option value="500000">500000</option>
-    </select>
-    <br><br>
-    <div id="dataContainer"></div>
-    <button id="saveBtn" disabled>Télécharger les données</button>
-    <br><br>
-    <button id="toggleAutoScrollBtn">Activer défilement auto</button>
+  <h1>Lecteur Port Série</h1>
+  <button id="connectBtn">Choisir un port série</button>
+  <button id="disconnectBtn" disabled>Déconnecter</button><br /><br />
 
-    <script>
-        let port; // Variable pour le port série
-        let isRecording = false; // Flag pour savoir si on enregistre
-        let recordedData = ''; // Données enregistrées
-        let autoScrollEnabled = true; // Flag pour savoir si le défilement automatique est activé
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const baudRateSelect = document.getElementById('baudRate');
-        const dataContainer = document.getElementById('dataContainer');
-        const saveBtn = document.getElementById('saveBtn');
-        const toggleAutoScrollBtn = document.getElementById('toggleAutoScrollBtn');
+  <label for="baudRate">Baudrate :</label>
+  <select id="baudRate">
+    <option value="9600">9600</option>
+    <option value="115200" selected>115200</option>
+    <option value="256000">256000</option>
+    <option value="500000">500000</option>
+  </select><br /><br />
 
-        // Forcer le baudrate par défaut à 115200
-        baudRateSelect.value = "115200";
+  <div id="dataContainer"></div>
 
-        // Fonction pour choisir et se connecter au port série
-        connectBtn.addEventListener('click', async () => {
-            try {
-                // Demande à l'utilisateur de sélectionner un port série
-                port = await navigator.serial.requestPort();
-                await port.open({ baudRate: parseInt(baudRateSelect.value) });
-                connectBtn.disabled = true;
-                disconnectBtn.disabled = false;
-                saveBtn.disabled = false;
-                readData();
-                console.log('Connexion réussie');
-            } catch (error) {
-                console.error('Erreur de connexion au port série :', error);
+  <button id="saveBtn" disabled>Télécharger les données</button>
+  <button id="toggleAutoScrollBtn">Désactiver défilement auto</button>
+
+  <script>
+    let port = null;
+    let reader = null;
+    let keepReading = false;
+    let isRecording = false;
+    let recordedData = "";
+    let autoScrollEnabled = true;
+    const encoder = new TextEncoder();
+
+    const connectBtn = document.getElementById("connectBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+    const baudRateSelect = document.getElementById("baudRate");
+    const dataContainer = document.getElementById("dataContainer");
+    const saveBtn = document.getElementById("saveBtn");
+    const toggleScrollBtn = document.getElementById("toggleAutoScrollBtn");
+
+    toggleScrollBtn.addEventListener("click", () => {
+      autoScrollEnabled = !autoScrollEnabled;
+      toggleScrollBtn.textContent = autoScrollEnabled
+        ? "Désactiver défilement auto"
+        : "Activer défilement auto";
+    });
+
+    connectBtn.addEventListener("click", async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: parseInt(baudRateSelect.value) });
+        reader = port.readable.getReader();
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        saveBtn.disabled = false;
+        keepReading = true;
+        readLoop();
+      } catch (err) {
+        console.error("Erreur connexion:", err);
+      }
+    });
+
+    disconnectBtn.addEventListener("click", async () => {
+      keepReading = false;
+      if (reader) {
+        await reader.cancel();
+        await reader.releaseLock();
+        reader = null;
+      }
+      if (port) {
+        await port.close();
+        port = null;
+      }
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      saveBtn.disabled = true;
+      console.log("Déconnecté");
+    });
+
+    async function readLoop() {
+      const textDecoder = new TextDecoder();
+      let buffer = "";
+
+      while (keepReading && reader) {
+        try {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += textDecoder.decode(value, { stream: true });
+
+          // Gestion par ligne
+          let lines = buffer.split(/\r?\n/);
+          buffer = lines.pop(); // Garder la ligne incomplète pour la suite
+
+          for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+
+            // Afficher
+            dataContainer.textContent += line + "\n";
+            if (autoScrollEnabled) {
+              dataContainer.scrollTop = dataContainer.scrollHeight;
             }
-        });
 
-        // Fonction pour déconnecter le port série
-        disconnectBtn.addEventListener('click', async () => {
-            if (port) {
-                try {
-                    // Fermer le port série
-                    await port.close();
-                    port = null; // Réinitialiser la variable du port
-                    // Désactivation des boutons et réactivation du bouton de connexion
-                    connectBtn.disabled = false;
-                    disconnectBtn.disabled = true;
-                    saveBtn.disabled = true;
-                    dataContainer.innerHTML = ''; // Efface les données affichées
-                    console.log('Port série déconnecté');
-                } catch (error) {
-                    console.error('Erreur lors de la déconnexion du port série :', error);
-                }
+            // Enregistrement : démarrer SEULEMENT après "everything is ok"
+            if (!isRecording && line.includes("everything is ok")) {
+              isRecording = true;
+              recordedData = ""; // Reset les anciennes données
+              console.log("Début de l'enregistrement après:", line);
+              continue; // Ne pas inclure cette ligne
             }
-        });
 
-        // Fonction pour lire les données du port série
-        async function readData() {
-            const reader = port.readable.getReader();
-            try {
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    const text = new TextDecoder().decode(value);
-                    dataContainer.innerText += text; // Affiche les données dans la page
-
-                    // Si le message "everything is ok" arrive, commencer à enregistrer
-                    if (text.includes("everything is ok") && !isRecording) {
-                        isRecording = true;
-                        recordedData = ''; // Réinitialiser les données précédemment enregistrées
-                        console.log('Enregistrement des données commencé...');
-                    }
-
-                    // Si l'enregistrement est actif, ajouter les données au fichier
-                    if (isRecording) {
-                        recordedData += text;
-                    }
-
-                    // Gérer le défilement automatique
-                    if (autoScrollEnabled) {
-                        dataContainer.scrollTop = dataContainer.scrollHeight;
-                    }
-                }
-            } catch (error) {
-                console.error('Erreur de lecture des données :', error);
-            } finally {
-                reader.releaseLock();
+            if (isRecording) {
+              recordedData += line + "\n";
             }
+          }
+        } catch (err) {
+          console.error("Erreur lecture:", err);
+          break;
         }
+      }
+    }
 
-        // Fonction pour télécharger les données enregistrées dans un fichier txt
-        saveBtn.addEventListener('click', () => {
-            const blob = new Blob([recordedData], { type: 'text/plain' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'données_serie.txt'; // Nom du fichier
-            link.click();
-        });
-
-        // Fonction pour activer/désactiver le défilement automatique
-        toggleAutoScrollBtn.addEventListener('click', () => {
-            autoScrollEnabled = !autoScrollEnabled;
-            toggleAutoScrollBtn.innerText = autoScrollEnabled ? "Désactiver défilement auto" : "Activer défilement auto";
-        });
-    </script>
+    saveBtn.addEventListener("click", () => {
+      const blob = new Blob([recordedData], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "donnees.txt";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
 </body>
 </html>
