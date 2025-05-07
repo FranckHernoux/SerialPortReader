@@ -251,12 +251,14 @@
     // Fonction pour afficher le spectre de fréquence via FFT
     // Vérification si FFT est chargé
     function checkFFT() {
-      if (typeof window.FFT === "undefined") {
-        console.error("La bibliothèque FFT n'est pas correctement chargée.");
-        alert("La bibliothèque FFT n'est pas chargée. Vérifiez la connexion au CDN.");
+      try {
+        const test = new FFT(8);
+        return true;
+      } catch (e) {
+        console.error("FFT non disponible :", e);
+        alert("La bibliothèque FFT n'est pas chargée ou incompatible.");
         return false;
       }
-      return true;
     }
 
     plotButton.addEventListener("click", () => {
