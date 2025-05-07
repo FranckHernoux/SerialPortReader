@@ -17,11 +17,9 @@
       font-family: monospace;
       box-sizing: border-box;
     }
-
     button {
       margin: 5px;
     }
-
     body {
       max-width: 800px;
       margin: auto;
@@ -53,9 +51,12 @@
     let reader = null;
     let keepReading = false;
     let isRecording = false;
-    let recordedData = "";
+    let recordedData = "";  // Toutes les données enregistrées
     let autoScrollEnabled = true;
-
+    
+    // Tableau pour ne garder que les 300 dernières lignes pour l'affichage
+    let displayedLines = [];
+    
     const connectBtn = document.getElementById("connectBtn");
     const disconnectBtn = document.getElementById("disconnectBtn");
     const baudRateSelect = document.getElementById("baudRate");
@@ -63,6 +64,7 @@
     const saveBtn = document.getElementById("saveBtn");
     const toggleScrollBtn = document.getElementById("toggleAutoScrollBtn");
 
+    // Gestion du bouton de défilement auto
     toggleScrollBtn.addEventListener("click", () => {
       autoScrollEnabled = !autoScrollEnabled;
       toggleScrollBtn.textContent = autoScrollEnabled
@@ -74,7 +76,6 @@
       try {
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: parseInt(baudRateSelect.value) });
-
         reader = port.readable.getReader();
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
@@ -89,22 +90,19 @@
     disconnectBtn.addEventListener("click", async () => {
       try {
         keepReading = false;
-
         if (reader) {
           await reader.cancel();
           await reader.releaseLock();
           reader = null;
         }
-
         if (port && port.readable) {
           await port.close();
         }
-
         port = null;
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
-        saveBtn.disabled = recordedData.trim() === "";
-
+        // On ne désactive PAS le bouton téléchargement : 
+        // on veut conserver la possibilité de télécharger les données déjà enregistrées.
         console.log("Déconnecté avec succès.");
       } catch (err) {
         console.error("Erreur lors de la déconnexion :", err);
@@ -114,33 +112,38 @@
     async function readLoop() {
       const textDecoder = new TextDecoder();
       let buffer = "";
-
       while (keepReading && reader) {
         try {
           const { value, done } = await reader.read();
           if (done) break;
-
           buffer += textDecoder.decode(value, { stream: true });
+          // Découpage par ligne (en conservant la dernière ligne incomplète dans buffer)
           let lines = buffer.split(/\r?\n/);
-          buffer = lines.pop();
-
+          buffer = lines.pop(); 
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
 
-            dataContainer.textContent += line + "\n";
-            if (autoScrollEnabled) {
-              dataContainer.scrollTop = dataContainer.scrollHeight;
-            }
-
+            // Enregistrement complet dans recordedData
+            // Ne commence l'enregistrement qu'après avoir reçu "everything is ok"
             if (!isRecording && line.includes("everything is ok")) {
               isRecording = true;
-              recordedData = "";
+              recordedData = ""; // Réinitialise pour n'enregistrer que à partir de ce point
+              // On ne stocke pas la ligne contenant "everything is ok"
               continue;
             }
-
             if (isRecording) {
               recordedData += line + "\n";
+            }
+
+            // Gestion de l'affichage : on conserve 300 dernières lignes
+            displayedLines.push(line);
+            if (displayedLines.length > 300) {
+              displayedLines.shift();
+            }
+            dataContainer.textContent = displayedLines.join("\n");
+            if (autoScrollEnabled) {
+              dataContainer.scrollTop = dataContainer.scrollHeight;
             }
           }
         } catch (err) {
