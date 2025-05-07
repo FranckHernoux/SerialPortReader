@@ -1,90 +1,105 @@
-<!-- Forcer GitHub Pages -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Lecteur de Port Série</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    #output { white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; }
-    label, select, input, button { margin: 10px 0; display: block; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur Port Série</title>
 </head>
 <body>
-  <h1>Connexion au Port Série</h1>
+    <h1>Lecteur Port Série</h1>
+    <button id="connectBtn">Choisir un port série</button>
+    <button id="disconnectBtn" disabled>Déconnecter</button>
+    <br><br>
+    <label for="baudRate">Choisir le Baudrate :</label>
+    <select id="baudRate">
+        <option value="9600">9600</option>
+        <option value="115200">115200</option>
+        <option value="256000">256000</option>
+        <option value="500000">500000</option>
+    </select>
+    <br><br>
+    <div id="dataContainer"></div>
+    <button id="saveBtn" disabled>Télécharger les données</button>
 
-  <label for="baudrate">Baudrate :</label>
-  <input type="number" id="baudrate" value="9600">
+    <script>
+        let port; // Variable pour le port série
+        let isRecording = false; // Flag pour savoir si on enregistre
+        let recordedData = ''; // Données enregistrées
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const baudRateSelect = document.getElementById('baudRate');
+        const dataContainer = document.getElementById('dataContainer');
+        const saveBtn = document.getElementById('saveBtn');
 
-  <button id="connect">Choisir un port série</button>
-  <button id="start-recording" disabled>Enregistrer les données</button>
+        // Fonction pour choisir et se connecter au port série
+        connectBtn.addEventListener('click', async () => {
+            try {
+                // Demande à l'utilisateur de sélectionner un port série
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: parseInt(baudRateSelect.value) });
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                saveBtn.disabled = false;
+                readData();
+                console.log('Connexion réussie');
+            } catch (error) {
+                console.error('Erreur de connexion au port série :', error);
+            }
+        });
 
-  <h2>Données reçues :</h2>
-  <div id="output"></div>
+        // Fonction pour déconnecter le port série
+        disconnectBtn.addEventListener('click', async () => {
+            if (port) {
+                try {
+                    await port.close();
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    saveBtn.disabled = true;
+                    dataContainer.innerHTML = ''; // Efface les données affichées
+                    console.log('Port série déconnecté');
+                } catch (error) {
+                    console.error('Erreur lors de la déconnexion du port série :', error);
+                }
+            }
+        });
 
-  <script>
-    let port;
-    let reader;
-    let keepReading = true;
-    let recordedData = "";
-    let isRecording = false;
+        // Fonction pour lire les données du port série
+        async function readData() {
+            const reader = port.readable.getReader();
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const text = new TextDecoder().decode(value);
+                    dataContainer.innerText += text; // Affiche les données dans la page
 
-    const output = document.getElementById("output");
-    const connectButton = document.getElementById("connect");
-    const recordButton = document.getElementById("start-recording");
+                    // Si le message "everything is ok" arrive, commencer à enregistrer
+                    if (text.includes("everything is ok") && !isRecording) {
+                        isRecording = true;
+                        recordedData = ''; // Réinitialiser les données précédemment enregistrées
+                        console.log('Enregistrement des données commencé...');
+                    }
 
-    connectButton.addEventListener("click", async () => {
-      try {
-        port = await navigator.serial.requestPort();
-        const baudRate = parseInt(document.getElementById("baudrate").value);
-        await port.open({ baudRate });
-
-        const decoder = new TextDecoderStream();
-        const inputDone = port.readable.pipeTo(decoder.writable);
-        reader = decoder.readable.getReader();
-
-        keepReading = true;
-        recordButton.disabled = false;
-
-        readLoop();
-      } catch (err) {
-        alert("Erreur : " + err);
-      }
-    });
-
-    recordButton.addEventListener("click", () => {
-      if (!isRecording) {
-        isRecording = true;
-        recordedData = "";
-        recordButton.textContent = "Arrêter et sauvegarder";
-      } else {
-        isRecording = false;
-        saveToFile(recordedData);
-        recordButton.textContent = "Enregistrer les données";
-      }
-    });
-
-    async function readLoop() {
-      while (keepReading) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          output.textContent += value;
-          output.scrollTop = output.scrollHeight;
-          if (isRecording) recordedData += value;
+                    // Si l'enregistrement est actif, ajouter les données au fichier
+                    if (isRecording) {
+                        recordedData += text;
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur de lecture des données :', error);
+            } finally {
+                reader.releaseLock();
+            }
         }
-      }
-    }
 
-    function saveToFile(data) {
-      const blob = new Blob([data], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "donnees_serie.txt";
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  </script>
+        // Fonction pour télécharger les données enregistrées dans un fichier txt
+        saveBtn.addEventListener('click', () => {
+            const blob = new Blob([recordedData], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'données_serie.txt'; // Nom du fichier
+            link.click();
+        });
+    </script>
 </body>
 </html>
