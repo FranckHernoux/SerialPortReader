@@ -7,6 +7,19 @@
     body {
       font-family: sans-serif;
       margin: 20px;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    .control-panel {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 10px;
     }
     #dataContainer {
       width: 100%;
@@ -17,6 +30,7 @@
       padding: 10px;
       background-color: #f9f9f9;
       box-sizing: border-box;
+      margin-bottom: 10px;
     }
     #allDataContainer {
       width: 100%;
@@ -28,31 +42,52 @@
       background-color: #eef6ff;
       margin-top: 10px;
       box-sizing: border-box;
+      display: none;
+    }
+    button, select, label {
+      margin: 5px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
   <h2>Lecteur Port Série Web</h2>
-  <button id="connectBtn">Choisir un port série</button>
-  <button id="disconnectBtn" disabled>Déconnecter</button>
-  <label for="baudrateSelect">Baudrate:</label>
-  <select id="baudrateSelect">
-    <option value="9600">9600</option>
-    <option value="19200">19200</option>
-    <option value="38400">38400</option>
-    <option value="57600">57600</option>
-    <option value="115200" selected>115200</option>
-  </select>
-  <button id="saveBtn" disabled>Télécharger les données</button>
-  <button id="showAllBtn">Afficher toutes les données enregistrées</button>
-  <button id="clearDataBtn">Effacer les données enregistrées</button>
-  <label>
-    <input type="checkbox" id="scrollToggle" checked>
-    Scroll automatique
-  </label>
 
+  <!-- Panel de contrôle -->
+  <div class="control-panel">
+    <button id="connectBtn">Choisir un port série</button>
+    <button id="disconnectBtn" disabled>Déconnecter</button>
+
+    <label for="baudrateSelect">Baudrate :</label>
+    <select id="baudrateSelect">
+      <option value="9600">9600</option>
+      <option value="19200">19200</option>
+      <option value="38400">38400</option>
+      <option value="57600">57600</option>
+      <option value="115200" selected>115200</option>
+    </select>
+  </div>
+
+  <!-- Affichage des données reçues -->
   <div id="dataContainer"></div>
-  <div id="allDataContainer" style="display:none;"></div>
+
+  <!-- Actions sous les données -->
+  <div class="actions">
+    <button id="clearDataBtn">Effacer les données</button>
+    <label>
+      <input type="checkbox" id="scrollToggle" checked>
+      Scroll automatique
+    </label>
+    <button id="saveBtn" disabled>Télécharger les données</button>
+  </div>
+
+  <!-- Affichage de toutes les données -->
+  <button id="showAllBtn">Afficher toutes les données enregistrées</button>
+  <div id="allDataContainer"></div>
 
   <script>
     let port, reader;
@@ -68,8 +103,8 @@
     const saveBtn = document.getElementById("saveBtn");
     const scrollToggle = document.getElementById("scrollToggle");
     const dataContainer = document.getElementById("dataContainer");
-    const showAllBtn = document.getElementById("showAllBtn");
     const allDataContainer = document.getElementById("allDataContainer");
+    const showAllBtn = document.getElementById("showAllBtn");
     const clearDataBtn = document.getElementById("clearDataBtn");
 
     connectBtn.addEventListener("click", async () => {
