@@ -6,21 +6,32 @@
   <style>
     #dataContainer {
       width: 100%;
+      max-width: 100%;
       height: 300px;
       overflow-y: scroll;
+      overflow-x: hidden;
       border: 1px solid #ccc;
       padding: 10px;
       background: #f9f9f9;
       white-space: pre-wrap;
       font-family: monospace;
+      box-sizing: border-box;
     }
+
     button {
       margin: 5px;
+    }
+
+    body {
+      max-width: 800px;
+      margin: auto;
+      padding: 20px;
     }
   </style>
 </head>
 <body>
   <h1>Lecteur Port Série</h1>
+
   <button id="connectBtn">Choisir un port série</button>
   <button id="disconnectBtn" disabled>Déconnecter</button><br /><br />
 
@@ -44,7 +55,6 @@
     let isRecording = false;
     let recordedData = "";
     let autoScrollEnabled = true;
-    const encoder = new TextEncoder();
 
     const connectBtn = document.getElementById("connectBtn");
     const disconnectBtn = document.getElementById("disconnectBtn");
@@ -64,6 +74,7 @@
       try {
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: parseInt(baudRateSelect.value) });
+
         reader = port.readable.getReader();
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
@@ -71,25 +82,33 @@
         keepReading = true;
         readLoop();
       } catch (err) {
-        console.error("Erreur connexion:", err);
+        console.error("Erreur de connexion :", err);
       }
     });
 
     disconnectBtn.addEventListener("click", async () => {
-      keepReading = false;
-      if (reader) {
-        await reader.cancel();
-        await reader.releaseLock();
-        reader = null;
-      }
-      if (port) {
-        await port.close();
+      try {
+        keepReading = false;
+
+        if (reader) {
+          await reader.cancel();
+          await reader.releaseLock();
+          reader = null;
+        }
+
+        if (port && port.readable) {
+          await port.close();
+        }
+
         port = null;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        saveBtn.disabled = true;
+
+        console.log("Déconnecté avec succès.");
+      } catch (err) {
+        console.error("Erreur lors de la déconnexion :", err);
       }
-      connectBtn.disabled = false;
-      disconnectBtn.disabled = true;
-      saveBtn.disabled = true;
-      console.log("Déconnecté");
     });
 
     async function readLoop() {
@@ -100,28 +119,24 @@
         try {
           const { value, done } = await reader.read();
           if (done) break;
-          buffer += textDecoder.decode(value, { stream: true });
 
-          // Gestion par ligne
+          buffer += textDecoder.decode(value, { stream: true });
           let lines = buffer.split(/\r?\n/);
-          buffer = lines.pop(); // Garder la ligne incomplète pour la suite
+          buffer = lines.pop();
 
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
 
-            // Afficher
             dataContainer.textContent += line + "\n";
             if (autoScrollEnabled) {
               dataContainer.scrollTop = dataContainer.scrollHeight;
             }
 
-            // Enregistrement : démarrer SEULEMENT après "everything is ok"
             if (!isRecording && line.includes("everything is ok")) {
               isRecording = true;
-              recordedData = ""; // Reset les anciennes données
-              console.log("Début de l'enregistrement après:", line);
-              continue; // Ne pas inclure cette ligne
+              recordedData = "";
+              continue;
             }
 
             if (isRecording) {
@@ -129,7 +144,7 @@
             }
           }
         } catch (err) {
-          console.error("Erreur lecture:", err);
+          console.error("Erreur lecture série :", err);
           break;
         }
       }
