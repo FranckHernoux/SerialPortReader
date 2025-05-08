@@ -10,9 +10,6 @@
       font-family: sans-serif;
       margin: 20px;
       max-width: 800px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
     }
     h2 {
       margin-bottom: 20px;
@@ -30,13 +27,12 @@
       white-space: pre-wrap;
       border: 1px solid #ccc;
       padding: 10px;
-      background-color: #f9f9f9;
       box-sizing: border-box;
+      background-color: #f9f9f9;
       margin-bottom: 10px;
     }
     #allDataContainer {
       background-color: #eef6ff;
-      margin-top: 10px;
       display: none;
     }
     button, select, label {
@@ -47,7 +43,7 @@
       gap: 10px;
       margin-top: 10px;
     }
-    #spectrogram, #timePlot {
+    #spectrogram, #timeGraph {
       width: 100%;
       height: 400px;
       margin-top: 20px;
@@ -60,6 +56,7 @@
   <div class="control-panel">
     <button id="connectBtn">Choisir un port série</button>
     <button id="disconnectBtn" disabled>Déconnecter</button>
+
     <label for="baudrateSelect">Baudrate :</label>
     <select id="baudrateSelect">
       <option value="9600">9600</option>
@@ -90,30 +87,15 @@
       <option value="0">Colonne 1 (Index 0)</option>
       <option value="1">Colonne 2 (Index 1)</option>
       <option value="2">Colonne 3 (Index 2)</option>
-      <option value="3">Colonne 4 (Index 3)</option>
+      <option value="3" selected>Colonne 4 (Index 3)</option>
       <option value="4">Colonne 5 (Index 4)</option>
       <option value="5">Colonne 6 (Index 5)</option>
     </select>
     <button id="plotButton">Afficher le spectre de fréquence</button>
   </div>
 
+  <div id="timeGraph"></div>
   <div id="spectrogram"></div>
-
-  <div>
-    <label for="timeWindow">Durée (secondes) :</label>
-    <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 60px;">
-    <label for="timeColumnSelect">Colonne pour graphique temporel :</label>
-    <select id="timeColumnSelect">
-      <option value="0">Colonne 1 (Index 0)</option>
-      <option value="1">Colonne 2 (Index 1)</option>
-      <option value="2">Colonne 3 (Index 2)</option>
-      <option value="3">Colonne 4 (Index 3)</option>
-      <option value="4">Colonne 5 (Index 4)</option>
-      <option value="5">Colonne 6 (Index 5)</option>
-    </select>
-    <button id="startTimePlot">Démarrer affichage temporel</button>
-  </div>
-  <div id="timePlot"></div>
 
   <script>
     let port, reader;
@@ -136,12 +118,7 @@
     const columnSelect = document.getElementById("columnSelect");
     const plotButton = document.getElementById("plotButton");
     const spectrogram = document.getElementById("spectrogram");
-
-    const timeWindowInput = document.getElementById("timeWindow");
-    const timeColumnSelect = document.getElementById("timeColumnSelect");
-    const timePlotDiv = document.getElementById("timePlot");
-    const startTimePlotBtn = document.getElementById("startTimePlot");
-    let timePlotInterval = null;
+    const timeGraph = document.getElementById("timeGraph");
 
     connectBtn.addEventListener("click", async () => {
       try {
@@ -153,9 +130,6 @@
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         saveBtn.disabled = recordedData.trim() === "";
-
-        // Démarre l'affichage temporel automatiquement
-        startTimePlotBtn.click();
       } catch (err) {
         console.error("Erreur connexion série :", err);
         alert("Erreur connexion série : " + err.message);
@@ -182,7 +156,6 @@
       connectBtn.disabled = false;
       disconnectBtn.disabled = true;
       saveBtn.disabled = recordedData.trim() === "";
-      if (timePlotInterval) clearInterval(timePlotInterval);
     });
 
     scrollToggle.addEventListener("change", () => {
@@ -192,6 +165,7 @@
     async function readLoop() {
       const textDecoder = new TextDecoder();
       let buffer = "";
+
       while (keepReading && reader) {
         try {
           const { value, done } = await reader.read();
@@ -203,20 +177,34 @@
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
+
             if (!isRecording && line.includes("everything is ok")) {
               isRecording = true;
               recordedData = "";
+              allData = [];
               continue;
             }
+
             if (isRecording) {
               recordedData += line + "\n";
+              allData.push(line);
               saveBtn.disabled = false;
+
+              if (allData.length >= 256 * 30) { // 30 secondes à 256 Hz
+                plotFrequencySpectrum();
+                plotTimeGraph();
+              }
             }
+
             displayedLines.push(line);
-            allData.push(line);
-            if (displayedLines.length > 300) displayedLines.shift();
+            if (displayedLines.length > 300) {
+              displayedLines.shift();
+            }
+
             dataContainer.textContent = displayedLines.join("\n");
-            if (autoScrollEnabled) dataContainer.scrollTop = dataContainer.scrollHeight;
+            if (autoScrollEnabled) {
+              dataContainer.scrollTop = dataContainer.scrollHeight;
+            }
           }
         } catch (err) {
           console.error("Erreur lecture série :", err);
@@ -236,7 +224,10 @@
     });
 
     showAllBtn.addEventListener("click", () => {
-      if (recordedData.trim() === "") return alert("Aucune donnée enregistrée à afficher.");
+      if (recordedData.trim() === "") {
+        alert("Aucune donnée enregistrée à afficher.");
+        return;
+      }
       allDataContainer.style.display = "block";
       allDataContainer.textContent = recordedData;
       allDataContainer.scrollTop = allDataContainer.scrollHeight;
@@ -247,58 +238,55 @@
       dataContainer.textContent = "";
     });
 
-    plotButton.addEventListener("click", () => {
+    plotButton.addEventListener("click", plotFrequencySpectrum);
+
+    function plotFrequencySpectrum() {
       const columnIndex = parseInt(columnSelect.value);
       const values = allData.map(line => {
         const parts = line.split(";");
-        const value = parseFloat(parts[columnIndex]);
-        return isNaN(value) ? null : value;
-      }).filter(v => v !== null);
+        return parseFloat(parts[columnIndex]);
+      }).filter(v => !isNaN(v));
 
-      if (values.length === 0) return alert('Aucune donnée valide pour cette colonne.');
       const fftSize = Math.pow(2, Math.floor(Math.log2(values.length)));
       const fft = new FFT(fftSize, 256);
       fft.forward(values.slice(0, fftSize));
-      const freqs = Array.from({ length: fftSize / 2 }, (_, i) => (i * 256) / fftSize);
+      const freqs = Array.from({ length: fftSize / 2 }, (_, i) => i * 256 / fftSize);
       const amps = fft.spectrum.slice(0, fftSize / 2);
-      Plotly.newPlot(spectrogram, [{ x: freqs, y: amps, type: 'scatter', mode: 'lines' }], {
+
+      Plotly.newPlot(spectrogram, [{
+        x: freqs,
+        y: amps,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Spectre de fréquence'
+      }], {
         title: 'Spectre de Fréquence',
         xaxis: { title: 'Fréquence (Hz)' },
         yaxis: { title: 'Amplitude' }
       });
-    });
+    }
 
-    startTimePlotBtn.addEventListener("click", () => {
-      if (timePlotInterval) clearInterval(timePlotInterval);
-      timePlotInterval = setInterval(() => {
-        const columnIndex = parseInt(timeColumnSelect.value);
-        const sampleRate = 256;
-        const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
-        const numSamples = timeWindowSeconds * sampleRate;
+    function plotTimeGraph() {
+      const columnIndex = parseInt(columnSelect.value);
+      const values = allData.map(line => {
+        const parts = line.split(";");
+        return parseFloat(parts[columnIndex]);
+      }).filter(v => !isNaN(v));
 
-        const values = allData.map(line => {
-          const parts = line.split(";");
-          const value = parseFloat(parts[columnIndex]);
-          return isNaN(value) ? null : value;
-        }).filter(v => v !== null);
+      const times = values.map((_, i) => i / 256); // En secondes
 
-        const recentValues = values.slice(-numSamples);
-        const timestamps = recentValues.map((_, i) => i / sampleRate);
-
-        if (recentValues.length > 0) {
-          Plotly.newPlot(timePlotDiv, [{
-            x: timestamps,
-            y: recentValues,
-            type: 'scatter',
-            mode: 'lines'
-          }], {
-            title: `Graphique temporel - Colonne ${columnIndex + 1}`,
-            xaxis: { title: "Temps (s)" },
-            yaxis: { title: "Amplitude" }
-          });
-        }
-      }, 500);
-    });
+      Plotly.newPlot(timeGraph, [{
+        x: times,
+        y: values,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Signal temporel'
+      }], {
+        title: 'Signal dans le Temps (30s)',
+        xaxis: { title: 'Temps (s)' },
+        yaxis: { title: 'Amplitude' }
+      });
+    }
   </script>
 </body>
 </html>
