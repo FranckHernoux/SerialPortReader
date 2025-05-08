@@ -59,9 +59,17 @@
       height: 400px;
       margin-top: 20px;
     }
-  </style>
-</head>
-<body>
+    
+    <!-- Paramètres et graphique temporel -->
+    <div style="margin-top: 20px;">
+      <label for="timeWindow">Durée d'affichage (secondes) :</label>
+      <input type="number" id="timeWindow" value="30" min="1" max="600" step="1">
+      <button id="startTimePlot">Afficher le signal temporel</button>
+    </div>
+    <div id="timePlot" style="width: 100%; height: 400px; margin-top: 10px;"></div>
+      </style>
+    </head>
+    <body>
   <h2>Lecteur Port Série Web</h2>
 
   <!-- Panel de contrôle -->
@@ -121,6 +129,9 @@
     let displayedLines = [];
     let autoScrollEnabled = true;
     let allData = [];
+    let liveTimeData = [];      // Stocke les valeurs de la colonne sélectionnée
+    let liveTimeStamps = [];    // Stocke les timestamps (en secondes)
+    let timePlotInterval = null; // Pour gérer le rafraîchissement automatique
 
     const connectBtn = document.getElementById("connectBtn");
     const disconnectBtn = document.getElementById("disconnectBtn");
@@ -206,6 +217,15 @@
 
             displayedLines.push(line);
             allData.push(line);  // Stocker toutes les données pour traitement spectrométrique
+            const parts = line.split(";");
+            const colIndex = parseInt(columnSelect.value);
+            const value = parseFloat(parts[colIndex]);
+            
+            if (!isNaN(value)) {
+              const now = performance.now() / 1000; // Temps en secondes
+              liveTimeData.push(value);
+              liveTimeStamps.push(now);
+            }
             if (displayedLines.length > 300) {
               displayedLines.shift();
             }
@@ -291,6 +311,46 @@
     };
     Plotly.newPlot(spectrogram, data, layout);
   });
+    document.getElementById("startTimePlot").addEventListener("click", () => {
+  if (timePlotInterval) {
+    clearInterval(timePlotInterval);
+  }
+
+  const timeWindowSec = parseFloat(document.getElementById("timeWindow").value) || 30;
+
+  timePlotInterval = setInterval(() => {
+    const now = performance.now() / 1000;
+
+    // Supprimer les données plus vieilles que la fenêtre
+    while (liveTimeStamps.length > 0 && (now - liveTimeStamps[0]) > timeWindowSec) {
+      liveTimeStamps.shift();
+      liveTimeData.shift();
+    }
+
+    // Créer les traces
+    const trace = {
+      x: liveTimeStamps.map(t => now - t).map(t => -t), // affichage avec temps qui défile vers la droite
+      y: liveTimeData,
+      mode: 'lines',
+      type: 'scatter',
+      name: 'Signal'
+    };
+
+    const layout = {
+      title: `Évolution temporelle sur ${timeWindowSec} s`,
+      xaxis: {
+        title: 'Temps (s)',
+        autorange: 'reversed',  // Pour que les nouvelles données soient à droite
+      },
+      yaxis: {
+        title: 'Valeur',
+        autorange: true
+      }
+    };
+
+    Plotly.newPlot("timePlot", [trace], layout);
+  }, 500); // met à jour toutes les 500 ms
+});
   </script>
 </body>
 </html>
