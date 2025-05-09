@@ -85,35 +85,24 @@
   <div id="allDataContainer"></div>
 
   <div>
-    <label for="columnSelect">Sélectionnez une colonne :</label>
+    <label for="columnSelect">Colonne pour les graphiques :</label>
     <select id="columnSelect">
       <option value="0">Colonne 1 (Index 0)</option>
       <option value="1">Colonne 2 (Index 1)</option>
       <option value="2">Colonne 3 (Index 2)</option>
-      <option value="3">Colonne 4 (Index 3)</option>
+      <option value="3" selected>Colonne 4 (Index 3)</option>
       <option value="4">Colonne 5 (Index 4)</option>
       <option value="5">Colonne 6 (Index 5)</option>
     </select>
-    <button id="plotButton">Afficher le spectre de fréquence</button>
   </div>
-
-  <div id="spectrogram"></div>
 
   <div>
     <label for="timeWindow">Durée (secondes) :</label>
     <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 60px;">
-    <label for="timeColumnSelect">Colonne pour graphique temporel :</label>
-    <select id="timeColumnSelect">
-      <option value="0">Colonne 1 (Index 0)</option>
-      <option value="1">Colonne 2 (Index 1)</option>
-      <option value="2">Colonne 3 (Index 2)</option>
-      <option value="3">Colonne 4 (Index 3)</option>
-      <option value="4">Colonne 5 (Index 4)</option>
-      <option value="5">Colonne 6 (Index 5)</option>
-    </select>
-    <button id="startTimePlot">Démarrer affichage temporel</button>
   </div>
+
   <div id="timePlot"></div>
+  <div id="spectrogram"></div>
 
   <script>
     let port, reader;
@@ -134,14 +123,12 @@
     const showAllBtn = document.getElementById("showAllBtn");
     const clearDataBtn = document.getElementById("clearDataBtn");
     const columnSelect = document.getElementById("columnSelect");
-    const plotButton = document.getElementById("plotButton");
+    const timeWindowInput = document.getElementById("timeWindow");
+    const timePlotDiv = document.getElementById("timePlot");
     const spectrogram = document.getElementById("spectrogram");
 
-    const timeWindowInput = document.getElementById("timeWindow");
-    const timeColumnSelect = document.getElementById("timeColumnSelect");
-    const timePlotDiv = document.getElementById("timePlot");
-    const startTimePlotBtn = document.getElementById("startTimePlot");
     let timePlotInterval = null;
+    let spectrumInterval = null;
 
     connectBtn.addEventListener("click", async () => {
       try {
@@ -153,9 +140,6 @@
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         saveBtn.disabled = recordedData.trim() === "";
-
-        // Démarre l'affichage temporel automatiquement
-        startTimePlotBtn.click();
       } catch (err) {
         console.error("Erreur connexion série :", err);
         alert("Erreur connexion série : " + err.message);
@@ -183,6 +167,7 @@
       disconnectBtn.disabled = true;
       saveBtn.disabled = recordedData.trim() === "";
       if (timePlotInterval) clearInterval(timePlotInterval);
+      if (spectrumInterval) clearInterval(spectrumInterval);
     });
 
     scrollToggle.addEventListener("change", () => {
@@ -203,15 +188,22 @@
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
+
             if (!isRecording && line.includes("everything is ok")) {
               isRecording = true;
               recordedData = "";
+
+              startTimePlot(); // Démarre automatiquement le graphique temporel
+              spectrumInterval = setInterval(updateSpectrum, 30000); // Spectre toutes les 30s
+              updateSpectrum(); // Premier affichage immédiat
               continue;
             }
+
             if (isRecording) {
               recordedData += line + "\n";
               saveBtn.disabled = false;
             }
+
             displayedLines.push(line);
             allData.push(line);
             if (displayedLines.length > 300) displayedLines.shift();
@@ -225,53 +217,10 @@
       }
     }
 
-    saveBtn.addEventListener("click", () => {
-      const blob = new Blob([recordedData], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "donnees.txt";
-      link.click();
-      URL.revokeObjectURL(url);
-    });
-
-    showAllBtn.addEventListener("click", () => {
-      if (recordedData.trim() === "") return alert("Aucune donnée enregistrée à afficher.");
-      allDataContainer.style.display = "block";
-      allDataContainer.textContent = recordedData;
-      allDataContainer.scrollTop = allDataContainer.scrollHeight;
-    });
-
-    clearDataBtn.addEventListener("click", () => {
-      displayedLines = [];
-      dataContainer.textContent = "";
-    });
-
-    plotButton.addEventListener("click", () => {
-      const columnIndex = parseInt(columnSelect.value);
-      const values = allData.map(line => {
-        const parts = line.split(";");
-        const value = parseFloat(parts[columnIndex]);
-        return isNaN(value) ? null : value;
-      }).filter(v => v !== null);
-
-      if (values.length === 0) return alert('Aucune donnée valide pour cette colonne.');
-      const fftSize = Math.pow(2, Math.floor(Math.log2(values.length)));
-      const fft = new FFT(fftSize, 256);
-      fft.forward(values.slice(0, fftSize));
-      const freqs = Array.from({ length: fftSize / 2 }, (_, i) => (i * 256) / fftSize);
-      const amps = fft.spectrum.slice(0, fftSize / 2);
-      Plotly.newPlot(spectrogram, [{ x: freqs, y: amps, type: 'scatter', mode: 'lines' }], {
-        title: 'Spectre de Fréquence',
-        xaxis: { title: 'Fréquence (Hz)' },
-        yaxis: { title: 'Amplitude' }
-      });
-    });
-
-    startTimePlotBtn.addEventListener("click", () => {
+    function startTimePlot() {
       if (timePlotInterval) clearInterval(timePlotInterval);
       timePlotInterval = setInterval(() => {
-        const columnIndex = parseInt(timeColumnSelect.value);
+        const columnIndex = parseInt(columnSelect.value);
         const sampleRate = 256;
         const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
         const numSamples = timeWindowSeconds * sampleRate;
@@ -298,6 +247,54 @@
           });
         }
       }, 500);
+    }
+
+    function updateSpectrum() {
+      const columnIndex = parseInt(columnSelect.value);
+      const values = allData.map(line => {
+        const parts = line.split(";");
+        const value = parseFloat(parts[columnIndex]);
+        return isNaN(value) ? null : value;
+      }).filter(v => v !== null);
+
+      if (values.length === 0) return;
+      const fftSize = Math.pow(2, Math.floor(Math.log2(values.length)));
+      const fft = new FFT(fftSize, 256);
+      fft.forward(values.slice(-fftSize));
+      const freqs = Array.from({ length: fftSize / 2 }, (_, i) => (i * 256) / fftSize);
+      const amps = fft.spectrum.slice(0, fftSize / 2);
+      Plotly.newPlot(spectrogram, [{
+        x: freqs,
+        y: amps,
+        type: 'scatter',
+        mode: 'lines'
+      }], {
+        title: `Spectre de Fréquence - Colonne ${columnIndex + 1}`,
+        xaxis: { title: 'Fréquence (Hz)' },
+        yaxis: { title: 'Amplitude' }
+      });
+    }
+
+    saveBtn.addEventListener("click", () => {
+      const blob = new Blob([recordedData], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "donnees.txt";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    showAllBtn.addEventListener("click", () => {
+      if (recordedData.trim() === "") return alert("Aucune donnée enregistrée à afficher.");
+      allDataContainer.style.display = "block";
+      allDataContainer.textContent = recordedData;
+      allDataContainer.scrollTop = allDataContainer.scrollHeight;
+    });
+
+    clearDataBtn.addEventListener("click", () => {
+      displayedLines = [];
+      dataContainer.textContent = "";
     });
   </script>
 </body>
