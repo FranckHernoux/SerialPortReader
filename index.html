@@ -206,6 +206,27 @@
         reader = port.readable.getReader();
         keepReading = true;
         readLoop();
+        Plotly.newPlot(timePlotDiv, [{
+          x: [], y: [],
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Graphique temporel'
+        }], {
+          title: "Graphique temporel - Colonne 4",
+          xaxis: { title: "Temps (s)" },
+          yaxis: { title: "Amplitude" }
+        });
+        
+        Plotly.newPlot(spectrogram, [{
+          x: [], y: [],
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Spectre de fréquence'
+        }], {
+          title: "Spectre de Fréquence",
+          xaxis: { title: "Fréquence (Hz)" },
+          yaxis: { title: "Amplitude" }
+        });
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         saveBtn.disabled = recordedData.trim() === "";
@@ -217,28 +238,47 @@
 
     disconnectBtn.addEventListener("click", async () => {
       keepReading = false;
-      if (reader) {
-        try {
+    
+      try {
+        if (reader) {
           await reader.cancel();
           await reader.releaseLock();
-        } catch (err) {
-          console.error("Erreur lors de la déconnexion :", err);
         }
-      }
-      if (port) {
-        try {
+        if (port) {
           await port.close();
-        } catch (err) {
-          console.error("Erreur fermeture du port :", err);
         }
+      } catch (err) {
+        console.error("Erreur lors de la déconnexion :", err);
       }
+    
+      // Réinitialisation des boutons
       connectBtn.disabled = false;
       disconnectBtn.disabled = true;
-      saveBtn.disabled = recordedData.trim() === "";
-      if (timePlotInterval) clearInterval(timePlotInterval);
-      if (spectrumInterval) clearInterval(spectrumInterval);
+      saveBtn.disabled = true;
+    
+      // Nettoyage des timers et graphiques
+      if (timePlotInterval) {
+        clearInterval(timePlotInterval);
+        timePlotInterval = null;
+      }
+      if (spectrumInterval) {
+        clearInterval(spectrumInterval);
+        spectrumInterval = null;
+      }
+    
+      Plotly.purge(timePlotDiv);
+      Plotly.purge(spectrogram);
+    
+      // Réinitialisation des données et états
+      recordedData = "";
+      isRecording = false;
+      allData = [];
+      displayedLines = [];
+    
+      dataContainer.textContent = "";
+      allDataContainer.textContent = "";
+      allDataContainer.style.display = "none";
     });
-
     scrollToggle.addEventListener("change", () => {
       autoScrollEnabled = scrollToggle.checked;
     });
