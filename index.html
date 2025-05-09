@@ -302,7 +302,6 @@
               isRecording = true;
               recordedData = "";
 
-              startTimePlot(); // Démarre automatiquement le graphique temporel
               spectrumInterval = setInterval(updateSpectrum, 10000); // Spectre toutes les 10s
               updateSpectrum(); // Premier affichage immédiat
               continue;
@@ -311,8 +310,35 @@
             if (isRecording) {
               recordedData += line + "\n";
               saveBtn.disabled = false;
+              
+              // Mise à jour fluide du graphique
+              const columnIndex = parseInt(columnSelect.value);
+              const sampleRate = 256;
+              const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
+              const numSamples = timeWindowSeconds * sampleRate;
+            
+              const values = allData.map(l => {
+                const parts = l.split(";");
+                const val = parseFloat(parts[columnIndex]);
+                return isNaN(val) ? null : val;
+              }).filter(v => v !== null);
+            
+              const recentValues = values.slice(-numSamples);
+              const timestamps = recentValues.map((_, i) => i / sampleRate);
+            
+              if (recentValues.length > 0) {
+                Plotly.react(timePlotDiv, [{
+                  x: timestamps,
+                  y: recentValues,
+                  type: 'scatter',
+                  mode: 'lines'
+                }], {
+                  title: `Graphique temporel - Colonne ${columnIndex + 1}`,
+                  xaxis: { title: "Temps (s)" },
+                  yaxis: { title: "Amplitude" }
+                });
+              }
             }
-
             displayedLines.push(line);
             allData.push(line);
             if (displayedLines.length > 300) displayedLines.shift();
@@ -326,37 +352,7 @@
       }
     }
 
-    function startTimePlot() {
-      if (timePlotInterval) clearInterval(timePlotInterval);
-      timePlotInterval = setInterval(() => {
-        const columnIndex = parseInt(columnSelect.value);
-        const sampleRate = 256;
-        const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
-        const numSamples = timeWindowSeconds * sampleRate;
-
-        const values = allData.map(line => {
-          const parts = line.split(";");
-          const value = parseFloat(parts[columnIndex]);
-          return isNaN(value) ? null : value;
-        }).filter(v => v !== null);
-
-        const recentValues = values.slice(-numSamples);
-        const timestamps = recentValues.map((_, i) => i / sampleRate);
-
-        if (recentValues.length > 0) {
-          Plotly.newPlot(timePlotDiv, [{
-            x: timestamps,
-            y: recentValues,
-            type: 'scatter',
-            mode: 'lines'
-          }], {
-            title: `Graphique temporel - Colonne ${columnIndex + 1}`,
-            xaxis: { title: "Temps (s)" },
-            yaxis: { title: "Amplitude" }
-          });
-        }
-      }, 500);
-    }
+    
 
     function updateSpectrum() {
       const columnIndex = parseInt(columnSelect.value);
