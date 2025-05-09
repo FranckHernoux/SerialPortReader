@@ -82,7 +82,7 @@
   </style>
 </head>
 <body>
-  <h2>Lecteur Port Série Web V1.2</h2>
+  <h2>Lecteur Port Série Web V1.3</h2>
 
   <div class="control-panel">
     <button id="connectBtn">Choisir un port série</button>
@@ -229,12 +229,23 @@
             line = line.trim();
             if (!line) continue;
 
-            if (!isRecording && line.includes("everything is ok")) {
+            if (line.includes("everything is ok")) {
+              // Réinitialisation complète
               isRecording = true;
               recordedData = "";
               timePlotBuffer = [];
+              allData = [];
+              displayedLines = [];
+            
+              // Nettoyage affichage
+              dataContainer.textContent = "";
+              Plotly.react(timePlotDiv, [{ x: [], y: [] }], {}); // reset time plot
+              Plotly.react(spectrogram, [{ x: [], y: [] }], {}); // reset spectrum
+            
+              // Redémarrage des timers
               if (timePlotUpdater) clearInterval(timePlotUpdater);
-              timePlotUpdater = setInterval(updateTimePlot, 200); // 5 FPS
+              timePlotUpdater = setInterval(updateTimePlot, 200);
+            
               if (spectrumInterval) clearInterval(spectrumInterval);
               spectrumInterval = setInterval(updateSpectrum, 10000);
               updateSpectrum();
