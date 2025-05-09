@@ -81,7 +81,7 @@
   <button id="showAllBtn">Afficher toutes les données enregistrées</button>
   <div id="allDataContainer"></div>
 
- <div>
+  <div>
     <label for="columnSelect">Sélectionnez une colonne :</label>
     <select id="columnSelect">
       <option value="0">Colonne 1 (Index 0)</option>
@@ -91,10 +91,6 @@
       <option value="4">Colonne 5 (Index 4)</option>
       <option value="5">Colonne 6 (Index 5)</option>
     </select>
-  
-    <label for="durationInput">Durée (s) :</label>
-    <input type="number" id="durationInput" value="30" min="1" max="300" style="width: 60px;">
-  
     <button id="plotButton">Afficher le spectre de fréquence</button>
   </div>
 
@@ -102,7 +98,6 @@
   <div id="spectrogram"></div>
 
   <script>
-    const durationInput = document.getElementById("durationInput");
     let port, reader;
     let keepReading = false;
     let isRecording = false;
@@ -195,8 +190,7 @@
               allData.push(line);
               saveBtn.disabled = false;
 
-              const durationSeconds = parseInt(durationInput.value) || 30;
-              if (allData.length >= 256 * durationSeconds) {
+              if (allData.length >= 256 * 30) { // 30 secondes à 256 Hz
                 plotFrequencySpectrum();
                 plotTimeGraph();
               }
