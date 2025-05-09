@@ -125,8 +125,30 @@
     const columnSelect = document.getElementById("columnSelect");
     const timeWindowInput = document.getElementById("timeWindow");
     const timePlotDiv = document.getElementById("timePlot");
+    Plotly.newPlot(timePlotDiv, [{
+      x: [],
+      y: [],
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Graphique temporel'
+    }], {
+      title: "Graphique temporel - Colonne 4",
+      xaxis: { title: "Temps (s)" },
+      yaxis: { title: "Amplitude" }
+    });
     const spectrogram = document.getElementById("spectrogram");
-
+    Plotly.newPlot(spectrogram, [{
+      x: [],
+      y: [],
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Spectre de fréquence'
+    }], {
+      title: "Spectre de Fréquence",
+      xaxis: { title: "Fréquence (Hz)" },
+      yaxis: { title: "Amplitude" }
+    });
+    
     let timePlotInterval = null;
     let spectrumInterval = null;
 
