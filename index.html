@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Lecteur Port Série V1</title>
+  <title>Lecteur Port Série</title>
   <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/corbanbrook/dsp.js/dsp.js"></script>
   <style>
@@ -82,7 +82,7 @@
   </style>
 </head>
 <body>
-  <h2>Lecteur Port Série Web V1</h2>
+  <h2>Lecteur Port Série Web V1.2</h2>
 
   <div class="control-panel">
     <button id="connectBtn">Choisir un port série</button>
@@ -143,7 +143,7 @@
   <div id="allDataContainer"></div>
 
   <script>
-    // Collapsible panels
+    // UI collapsibles
     document.querySelectorAll(".collapsible").forEach(btn => {
       btn.addEventListener("click", () => {
         btn.classList.toggle("active");
@@ -152,6 +152,7 @@
         btn.textContent = (content.style.display === "block" ? "▾" : "▸") + " " + btn.textContent.slice(2);
       });
     });
+
     let port, reader;
     let keepReading = false;
     let isRecording = false;
@@ -159,6 +160,9 @@
     let displayedLines = [];
     let autoScrollEnabled = true;
     let allData = [];
+    let timePlotBuffer = [];
+    let timePlotUpdater = null;
+    let spectrumInterval = null;
 
     const connectBtn = document.getElementById("connectBtn");
     const disconnectBtn = document.getElementById("disconnectBtn");
@@ -172,32 +176,10 @@
     const columnSelect = document.getElementById("columnSelect");
     const timeWindowInput = document.getElementById("timeWindow");
     const timePlotDiv = document.getElementById("timePlot");
-    Plotly.newPlot(timePlotDiv, [{
-      x: [],
-      y: [],
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Graphique temporel'
-    }], {
-      title: "Graphique temporel - Colonne 4",
-      xaxis: { title: "Temps (s)" },
-      yaxis: { title: "Amplitude" }
-    });
     const spectrogram = document.getElementById("spectrogram");
-    Plotly.newPlot(spectrogram, [{
-      x: [],
-      y: [],
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Spectre de fréquence'
-    }], {
-      title: "Spectre de Fréquence",
-      xaxis: { title: "Fréquence (Hz)" },
-      yaxis: { title: "Amplitude" }
-    });
-    
-    let timePlotInterval = null;
-    let spectrumInterval = null;
+
+    Plotly.newPlot(timePlotDiv, [{ x: [], y: [], type: 'scatter', mode: 'lines' }], {});
+    Plotly.newPlot(spectrogram, [{ x: [], y: [], type: 'scatter', mode: 'lines' }], {});
 
     connectBtn.addEventListener("click", async () => {
       try {
@@ -206,94 +188,43 @@
         reader = port.readable.getReader();
         keepReading = true;
         readLoop();
-        Plotly.newPlot(timePlotDiv, [{
-          x: [], y: [],
-          type: 'scatter',
-          mode: 'lines',
-          name: 'Graphique temporel'
-        }], {
-          title: "Graphique temporel - Colonne 4",
-          xaxis: { title: "Temps (s)" },
-          yaxis: { title: "Amplitude" }
-        });
-        
-        Plotly.newPlot(spectrogram, [{
-          x: [], y: [],
-          type: 'scatter',
-          mode: 'lines',
-          name: 'Spectre de fréquence'
-        }], {
-          title: "Spectre de Fréquence",
-          xaxis: { title: "Fréquence (Hz)" },
-          yaxis: { title: "Amplitude" }
-        });
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         saveBtn.disabled = recordedData.trim() === "";
       } catch (err) {
-        console.error("Erreur connexion série :", err);
         alert("Erreur connexion série : " + err.message);
       }
     });
 
     disconnectBtn.addEventListener("click", async () => {
       keepReading = false;
-    
-      try {
-        if (reader) {
-          await reader.cancel();
-          await reader.releaseLock();
-        }
-        if (port) {
-          await port.close();
-        }
-      } catch (err) {
-        console.error("Erreur lors de la déconnexion :", err);
+      if (reader) {
+        try { await reader.cancel(); await reader.releaseLock(); } catch (e) {}
       }
-    
-      // Réinitialisation des boutons
+      if (port) {
+        try { await port.close(); } catch (e) {}
+      }
       connectBtn.disabled = false;
       disconnectBtn.disabled = true;
-      saveBtn.disabled = true;
-    
-      // Nettoyage des timers et graphiques
-      if (timePlotInterval) {
-        clearInterval(timePlotInterval);
-        timePlotInterval = null;
-      }
-      if (spectrumInterval) {
-        clearInterval(spectrumInterval);
-        spectrumInterval = null;
-      }
-    
-      Plotly.purge(timePlotDiv);
-      Plotly.purge(spectrogram);
-    
-      // Réinitialisation des données et états
-      recordedData = "";
-      isRecording = false;
-      allData = [];
-      displayedLines = [];
-    
-      dataContainer.textContent = "";
-      allDataContainer.textContent = "";
-      allDataContainer.style.display = "none";
+      saveBtn.disabled = recordedData.trim() === "";
+      if (timePlotUpdater) clearInterval(timePlotUpdater);
+      if (spectrumInterval) clearInterval(spectrumInterval);
     });
+
     scrollToggle.addEventListener("change", () => {
       autoScrollEnabled = scrollToggle.checked;
     });
 
     async function readLoop() {
-      const textDecoder = new TextDecoder();
+      const decoder = new TextDecoder();
       let buffer = "";
       while (keepReading && reader) {
         try {
           const { value, done } = await reader.read();
           if (done) break;
-          buffer += textDecoder.decode(value, { stream: true });
+          buffer += decoder.decode(value, { stream: true });
           let lines = buffer.split(/\r?\n/);
           buffer = lines.pop();
-
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
@@ -301,44 +232,23 @@
             if (!isRecording && line.includes("everything is ok")) {
               isRecording = true;
               recordedData = "";
-
-              spectrumInterval = setInterval(updateSpectrum, 10000); // Spectre toutes les 10s
-              updateSpectrum(); // Premier affichage immédiat
+              timePlotBuffer = [];
+              if (timePlotUpdater) clearInterval(timePlotUpdater);
+              timePlotUpdater = setInterval(updateTimePlot, 200); // 5 FPS
+              if (spectrumInterval) clearInterval(spectrumInterval);
+              spectrumInterval = setInterval(updateSpectrum, 10000);
+              updateSpectrum();
               continue;
             }
 
             if (isRecording) {
               recordedData += line + "\n";
+              const parts = line.split(";");
+              const val = parseFloat(parts[columnSelect.value]);
+              if (!isNaN(val)) timePlotBuffer.push(val);
               saveBtn.disabled = false;
-              
-              // Mise à jour fluide du graphique
-              const columnIndex = parseInt(columnSelect.value);
-              const sampleRate = 256;
-              const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
-              const numSamples = timeWindowSeconds * sampleRate;
-            
-              const values = allData.map(l => {
-                const parts = l.split(";");
-                const val = parseFloat(parts[columnIndex]);
-                return isNaN(val) ? null : val;
-              }).filter(v => v !== null);
-            
-              const recentValues = values.slice(-numSamples);
-              const timestamps = recentValues.map((_, i) => i / sampleRate);
-            
-              if (recentValues.length > 0) {
-                Plotly.react(timePlotDiv, [{
-                  x: timestamps,
-                  y: recentValues,
-                  type: 'scatter',
-                  mode: 'lines'
-                }], {
-                  title: `Graphique temporel - Colonne ${columnIndex + 1}`,
-                  xaxis: { title: "Temps (s)" },
-                  yaxis: { title: "Amplitude" }
-                });
-              }
             }
+
             displayedLines.push(line);
             allData.push(line);
             if (displayedLines.length > 300) displayedLines.shift();
@@ -352,23 +262,49 @@
       }
     }
 
-    
+    function updateTimePlot() {
+      const columnIndex = parseInt(columnSelect.value);
+      const sampleRate = 256;
+      const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
+      const numSamples = sampleRate * timeWindowSeconds;
+
+      const values = allData.map(line => {
+        const parts = line.split(";");
+        const val = parseFloat(parts[columnIndex]);
+        return isNaN(val) ? null : val;
+      }).filter(v => v !== null).slice(-numSamples);
+
+      const timestamps = values.map((_, i) => i / sampleRate);
+
+      if (values.length > 0) {
+        Plotly.react(timePlotDiv, [{
+          x: timestamps,
+          y: values,
+          type: 'scatter',
+          mode: 'lines'
+        }], {
+          title: `Graphique temporel - Colonne ${columnIndex + 1}`,
+          xaxis: { title: "Temps (s)" },
+          yaxis: { title: "Amplitude" }
+        });
+      }
+    }
 
     function updateSpectrum() {
       const columnIndex = parseInt(columnSelect.value);
       const values = allData.map(line => {
         const parts = line.split(";");
-        const value = parseFloat(parts[columnIndex]);
-        return isNaN(value) ? null : value;
+        const val = parseFloat(parts[columnIndex]);
+        return isNaN(val) ? null : val;
       }).filter(v => v !== null);
 
       if (values.length === 0) return;
       const fftSize = Math.pow(2, Math.floor(Math.log2(values.length)));
       const fft = new FFT(fftSize, 256);
       fft.forward(values.slice(-fftSize));
-      const freqs = Array.from({ length: fftSize / 2 }, (_, i) => (i * 256) / fftSize);
+      const freqs = Array.from({ length: fftSize / 2 }, (_, i) => i * 256 / fftSize);
       const amps = fft.spectrum.slice(0, fftSize / 2);
-      Plotly.newPlot(spectrogram, [{
+      Plotly.react(spectrogram, [{
         x: freqs,
         y: amps,
         type: 'scatter',
@@ -391,19 +327,17 @@
     });
 
     showAllBtn.addEventListener("click", () => {
-      if (recordedData.trim() === "") return alert("Aucune donnée enregistrée à afficher.");
+      if (recordedData.trim() === "") return alert("Aucune donnée enregistrée.");
       allDataContainer.style.display = "block";
       allDataContainer.textContent = recordedData;
-      allDataContainer.scrollTop = allDataContainer.scrollHeight;
     });
 
     clearDataBtn.addEventListener("click", () => {
       displayedLines = [];
       dataContainer.textContent = "";
     });
-    document.getElementById("updateSpectrumBtn").addEventListener("click", () => {
-      updateSpectrum();
-    });
+
+    document.getElementById("updateSpectrumBtn").addEventListener("click", updateSpectrum);
   </script>
 </body>
 </html>
