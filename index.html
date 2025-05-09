@@ -103,7 +103,7 @@
 
   <div id="timePlot"></div>
   <div id="spectrogram"></div>
-
+  <button id="updateSpectrumBtn">Actualiser le spectre</button>
   <script>
     let port, reader;
     let keepReading = false;
@@ -194,7 +194,7 @@
               recordedData = "";
 
               startTimePlot(); // Démarre automatiquement le graphique temporel
-              spectrumInterval = setInterval(updateSpectrum, 30000); // Spectre toutes les 30s
+              spectrumInterval = setInterval(updateSpectrum, 10000); // Spectre toutes les 10s
               updateSpectrum(); // Premier affichage immédiat
               continue;
             }
@@ -295,6 +295,9 @@
     clearDataBtn.addEventListener("click", () => {
       displayedLines = [];
       dataContainer.textContent = "";
+    });
+    document.getElementById("updateSpectrumBtn").addEventListener("click", () => {
+      updateSpectrum();
     });
   </script>
 </body>
