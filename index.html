@@ -10,18 +10,23 @@
       font-family: sans-serif;
       margin: 20px;
       max-width: 800px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
+      background-color: #1e1e1e;
+      color: white;
     }
     h2 {
       margin-bottom: 20px;
     }
-    .control-panel {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-      gap: 10px;
+    button, select, label, input {
+      background-color: #333;
+      color: white;
+      border: 1px solid #555;
+      padding: 5px;
+    }
+    select, input {
+      border-radius: 4px;
+    }
+    input[type="checkbox"] {
+      transform: scale(1.2);
     }
     #dataContainer, #allDataContainer {
       width: 100%;
@@ -30,27 +35,49 @@
       white-space: pre-wrap;
       border: 1px solid #ccc;
       padding: 10px;
-      background-color: #f9f9f9;
+      background-color: #2a2a2a;
       box-sizing: border-box;
-      margin-bottom: 10px;
+      margin-bottom: 5px;
+      color: white;
     }
     #allDataContainer {
-      background-color: #eef6ff;
+      background-color: #3a3a3a;
       margin-top: 10px;
       display: none;
     }
-    button, select, label {
-      margin: 5px;
+    hr {
+      border: 0;
+      height: 1px;
+      background: #666;
+      margin: 10px 0;
     }
-    .actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
+    .collapsible {
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      text-align: left;
+      outline: none;
+      font-size: 16px;
     }
-    #spectrogram, #timePlot {
+    .active, .collapsible:hover {
+      background-color: #444;
+    }
+    .content {
+      padding: 0 10px;
+      display: none;
+      overflow: hidden;
+      background-color: #2a2a2a;
+    }
+    #timePlot, #spectrogram {
       width: 100%;
       height: 400px;
-      margin-top: 20px;
+    }
+    .section-label {
+      margin-top: 10px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -72,17 +99,16 @@
 
   <div id="dataContainer"></div>
 
-  <div class="actions">
-    <button id="clearDataBtn">Effacer les données de l'affichage</button>
-    <label>
-      <input type="checkbox" id="scrollToggle" checked>
-      Scroll automatique
-    </label>
-    <button id="saveBtn" disabled>Télécharger les données</button>
-  </div>
+  <label>
+    <input type="checkbox" id="scrollToggle" checked>
+    Scroll automatique
+  </label>
 
+  <hr>
+  <button id="clearDataBtn">Effacer les données de l'affichage</button>
+  <button id="saveBtn" disabled>Télécharger les données</button>
   <button id="showAllBtn">Afficher toutes les données enregistrées</button>
-  <div id="allDataContainer"></div>
+  <hr>
 
   <div>
     <label for="columnSelect">Colonne pour les graphiques :</label>
@@ -101,10 +127,31 @@
     <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 60px;">
   </div>
 
-  <div id="timePlot"></div>
-  <div id="spectrogram"></div>
-  <button id="updateSpectrumBtn">Actualiser le spectre</button>
+  <button class="collapsible">▸ Graphique temporel</button>
+  <div class="content">
+    <div id="timePlot"></div>
+  </div>
+
+  <hr>
+
+  <button class="collapsible">▸ Spectre de fréquence</button>
+  <div class="content">
+    <div id="spectrogram"></div>
+    <button id="updateSpectrumBtn">Actualiser le spectre</button>
+  </div>
+
+  <div id="allDataContainer"></div>
+
   <script>
+    // Collapsible panels
+    document.querySelectorAll(".collapsible").forEach(btn => {
+      btn.addEventListener("click", () => {
+        btn.classList.toggle("active");
+        const content = btn.nextElementSibling;
+        content.style.display = content.style.display === "block" ? "none" : "block";
+        btn.textContent = (content.style.display === "block" ? "▾" : "▸") + " " + btn.textContent.slice(2);
+      });
+    });
     let port, reader;
     let keepReading = false;
     let isRecording = false;
