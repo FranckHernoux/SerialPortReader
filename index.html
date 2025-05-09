@@ -287,6 +287,79 @@
         yaxis: { title: 'Amplitude' }
       });
     }
+   <!-- === GRAPHIQUE TEMPOREL TEMPS RÉEL === -->
+  <div>
+    <label for="timeWindow">Durée (secondes) :</label>
+    <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 60px;">
+    <label for="timeColumnSelect">Colonne pour graphique temporel :</label>
+    <select id="timeColumnSelect">
+      <option value="0">Colonne 1 (Index 0)</option>
+      <option value="1">Colonne 2 (Index 1)</option>
+      <option value="2">Colonne 3 (Index 2)</option>
+      <option value="3">Colonne 4 (Index 3)</option>
+      <option value="4">Colonne 5 (Index 4)</option>
+      <option value="5">Colonne 6 (Index 5)</option>
+    </select>
+    <button id="startTimePlot">Démarrer affichage temporel</button>
+  </div>
+  <div id="timePlot" style="width:100%;height:400px;margin-top:20px;"></div>
+
+  <script>
+    let timePlotInterval = null;
+    const timeWindowInput = document.getElementById("timeWindow");
+    const timeColumnSelect = document.getElementById("timeColumnSelect");
+    const timePlotDiv = document.getElementById("timePlot");
+    const startTimePlotBtn = document.getElementById("startTimePlot");
+
+    startTimePlotBtn.addEventListener("click", () => {
+      if (timePlotInterval) clearInterval(timePlotInterval); // Clear previous if any
+
+      timePlotInterval = setInterval(() => {
+        const columnIndex = parseInt(timeColumnSelect.value);
+        const sampleRate = 256;
+        const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
+        const numSamples = timeWindowSeconds * sampleRate;
+
+        const values = allData.map(line => {
+          const parts = line.split(";");
+          const value = parseFloat(parts[columnIndex]);
+          return isNaN(value) ? null : value;
+        }).filter(val => val !== null);
+
+        const recentValues = values.slice(-numSamples);
+        const timestamps = recentValues.map((_, i) => i / sampleRate);
+
+        if (recentValues.length > 0) {
+          const data = [{
+            x: timestamps,
+            y: recentValues,
+            type: 'scatter',
+            mode: 'lines',
+            name: `Colonne ${columnIndex + 1}`
+          }];
+          const layout = {
+            title: `Graphique temporel - Colonne ${columnIndex + 1}`,
+            xaxis: { title: "Temps (s)" },
+            yaxis: { title: "Amplitude" }
+          };
+          Plotly.newPlot(timePlotDiv, data, layout);
+        }
+      }, 500); // met à jour toutes les 500 ms
+    });
+
+    // Auto-start on connect
+    connectBtn.addEventListener("click", () => {
+      const evt = new Event("click");
+      startTimePlotBtn.dispatchEvent(evt);
+    });
+
+    // Stop on disconnect
+    disconnectBtn.addEventListener("click", () => {
+      if (timePlotInterval) {
+        clearInterval(timePlotInterval);
+        timePlotInterval = null;
+      }
+    });
   </script>
 </body>
 </html>
