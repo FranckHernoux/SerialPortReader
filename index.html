@@ -128,14 +128,14 @@
   </div>
 
   <button class="collapsible">▸ Graphique temporel</button>
-  <div class="content">
+  <div class="content" style="display: block;">
     <div id="timePlot"></div>
   </div>
 
   <hr>
 
   <button class="collapsible">▸ Spectre de fréquence</button>
-  <div class="content">
+  <div class="content" style="display: block;">
     <div id="spectrogram"></div>
     <button id="updateSpectrumBtn">Actualiser le spectre</button>
   </div>
@@ -144,13 +144,21 @@
 
   <script>
     // UI collapsibles
+    
     document.querySelectorAll(".collapsible").forEach(btn => {
       btn.addEventListener("click", () => {
         btn.classList.toggle("active");
         const content = btn.nextElementSibling;
-        content.style.display = content.style.display === "block" ? "block" : "none";
+        content.style.display = content.style.display === "block" ? "none" : "block";
         btn.textContent = (content.style.display === "block" ? "▾" : "▸") + " " + btn.textContent.slice(2);
       });
+    });
+    // Ouvre les sections par défaut au démarrage
+    document.querySelectorAll(".collapsible").forEach(btn => {
+      const content = btn.nextElementSibling;
+      btn.classList.add("active");
+      content.style.display = "block";
+      btn.textContent = "▾ " + btn.textContent.slice(2);
     });
 
     let port, reader;
