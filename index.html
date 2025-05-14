@@ -200,8 +200,6 @@
     Plotly.newPlot(timePlotDiv, [{ x: [], y: [], type: 'scatter', mode: 'lines' }], {});
     Plotly.newPlot(spectrogram, [{ x: [], y: [], type: 'scatter', mode: 'lines' }], {});
 
-    const yMinInput = document.getElementById("yMin");
-    const yMaxInput = document.getElementById("yMax");
     connectBtn.addEventListener("click", async () => {
       try {
         port = await navigator.serial.requestPort();
