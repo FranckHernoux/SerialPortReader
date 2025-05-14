@@ -122,21 +122,20 @@
     </select>
   </div>
 
-  <div style="display: flex; gap: 10px; margin-top: 10px;">
-    <div style="flex: 1;">
-      <label for="timeWindow">Durée (secondes)</label><br>
-      <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 100%;">
+  <div style="display: flex; justify-content: space-between; gap: 10px;">
+    <div>
+      <label for="timeWindow">Durée (secondes) :</label>
+      <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 60px;">
     </div>
-    <div style="flex: 1;">
-      <label for="yMin">Y min</label><br>
-      <input type="number" id="yMin" placeholder="-100" style="width: 100%;">
+    <div>
+      <label for="yMin">Y min :</label>
+      <input type="number" id="yMin" style="width: 80px;">
     </div>
-    <div style="flex: 1;">
-      <label for="yMax">Y max</label><br>
-      <input type="number" id="yMax" placeholder="3000" style="width: 100%;">
+    <div>
+      <label for="yMax">Y max :</label>
+      <input type="number" id="yMax" style="width: 80px;">
     </div>
   </div>
-
   <button class="collapsible">▸ Graphique temporel</button>
   <div class="content" style="display: block;">
     <div id="timePlot"></div>
@@ -182,6 +181,8 @@
     let timePlotUpdater = null;
     let spectrumInterval = null;
 
+    const yMinInput = document.getElementById("yMin");
+    const yMaxInput = document.getElementById("yMax");
     const connectBtn = document.getElementById("connectBtn");
     const disconnectBtn = document.getElementById("disconnectBtn");
     const baudrateSelect = document.getElementById("baudrateSelect");
@@ -199,6 +200,8 @@
     Plotly.newPlot(timePlotDiv, [{ x: [], y: [], type: 'scatter', mode: 'lines' }], {});
     Plotly.newPlot(spectrogram, [{ x: [], y: [], type: 'scatter', mode: 'lines' }], {});
 
+    const yMinInput = document.getElementById("yMin");
+    const yMaxInput = document.getElementById("yMax");
     connectBtn.addEventListener("click", async () => {
       try {
         port = await navigator.serial.requestPort();
@@ -292,28 +295,22 @@
     }
 
     function updateTimePlot() {
-      const columnIndex = parseInt(document.getElementById("columnSelect").value);
-      const timeWindow = parseInt(document.getElementById("timeWindow").value);
-      const yMinInput = document.getElementById("yMin").value;
-      const yMaxInput = document.getElementById("yMax").value;
+      const columnIndex = parseInt(columnSelect.value);
+      const sampleRate = 256;
+      const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
+      const numSamples = sampleRate * timeWindowSeconds;
     
-      const now = Date.now();
-      const windowStart = now - timeWindow * 1000;
+      const values = allData.map(line => {
+        const parts = line.split(";");
+        const val = parseFloat(parts[columnIndex]);
+        return isNaN(val) ? null : val;
+      }).filter(v => v !== null).slice(-numSamples);
     
-      const timestamps = [];
-      const values = [];
+      const timestamps = values.map((_, i) => i / sampleRate);
     
-      for (let i = 0; i < dataBuffer.length; i++) {
-        const point = dataBuffer[i];
-        if (point.timestamp >= windowStart && point.timestamp <= now) {
-          timestamps.push((point.timestamp - now) / 1000); // en secondes depuis maintenant
-          values.push(point.values[columnIndex]);
-        }
-      }
-    
+      const yMin = parseFloat(yMinInput.value);
+      const yMax = parseFloat(yMaxInput.value);
       const yaxisConfig = { title: "Amplitude" };
-      const yMin = parseFloat(yMinInput);
-      const yMax = parseFloat(yMaxInput);
     
       if (!isNaN(yMin) && !isNaN(yMax)) {
         yaxisConfig.range = [yMin, yMax];
@@ -323,7 +320,6 @@
         yaxisConfig.range = [null, yMax];
       }
     
-      const timePlotDiv = document.getElementById("timePlot");
       Plotly.react(timePlotDiv, [{
         x: timestamps,
         y: values,
