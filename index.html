@@ -122,9 +122,19 @@
     </select>
   </div>
 
-  <div>
-    <label for="timeWindow">Durée (secondes) :</label>
-    <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 60px;">
+  <div style="display: flex; gap: 10px; margin-top: 10px;">
+    <div style="flex: 1;">
+      <label for="timeWindow">Durée (secondes)</label><br>
+      <input type="number" id="timeWindow" value="30" min="1" max="300" style="width: 100%;">
+    </div>
+    <div style="flex: 1;">
+      <label for="yMin">Y min</label><br>
+      <input type="number" id="yMin" placeholder="-100" style="width: 100%;">
+    </div>
+    <div style="flex: 1;">
+      <label for="yMax">Y max</label><br>
+      <input type="number" id="yMax" placeholder="3000" style="width: 100%;">
+    </div>
   </div>
 
   <button class="collapsible">▸ Graphique temporel</button>
@@ -282,32 +292,50 @@
     }
 
     function updateTimePlot() {
-      const columnIndex = parseInt(columnSelect.value);
-      const sampleRate = 256;
-      const timeWindowSeconds = parseInt(timeWindowInput.value) || 30;
-      const numSamples = sampleRate * timeWindowSeconds;
-
-      const values = allData.map(line => {
-        const parts = line.split(";");
-        const val = parseFloat(parts[columnIndex]);
-        return isNaN(val) ? null : val;
-      }).filter(v => v !== null).slice(-numSamples);
-
-      const timestamps = values.map((_, i) => i / sampleRate);
-
-      if (values.length > 0) {
-        Plotly.react(timePlotDiv, [{
-          x: timestamps,
-          y: values,
-          type: 'scatter',
-          mode: 'lines'
-        }], {
-          title: `Graphique temporel - Colonne ${columnIndex + 1}`,
-          xaxis: { title: "Temps (s)" },
-          yaxis: { title: "Amplitude" }
-        });
+      const columnIndex = parseInt(document.getElementById("columnSelect").value);
+      const timeWindow = parseInt(document.getElementById("timeWindow").value);
+      const yMinInput = document.getElementById("yMin").value;
+      const yMaxInput = document.getElementById("yMax").value;
+    
+      const now = Date.now();
+      const windowStart = now - timeWindow * 1000;
+    
+      const timestamps = [];
+      const values = [];
+    
+      for (let i = 0; i < dataBuffer.length; i++) {
+        const point = dataBuffer[i];
+        if (point.timestamp >= windowStart && point.timestamp <= now) {
+          timestamps.push((point.timestamp - now) / 1000); // en secondes depuis maintenant
+          values.push(point.values[columnIndex]);
+        }
       }
+    
+      const yaxisConfig = { title: "Amplitude" };
+      const yMin = parseFloat(yMinInput);
+      const yMax = parseFloat(yMaxInput);
+    
+      if (!isNaN(yMin) && !isNaN(yMax)) {
+        yaxisConfig.range = [yMin, yMax];
+      } else if (!isNaN(yMin)) {
+        yaxisConfig.range = [yMin, null];
+      } else if (!isNaN(yMax)) {
+        yaxisConfig.range = [null, yMax];
+      }
+    
+      const timePlotDiv = document.getElementById("timePlot");
+      Plotly.react(timePlotDiv, [{
+        x: timestamps,
+        y: values,
+        type: 'scatter',
+        mode: 'lines'
+      }], {
+        title: `Graphique temporel - Colonne ${columnIndex + 1}`,
+        xaxis: { title: "Temps (s)" },
+        yaxis: yaxisConfig
+      });
     }
+
 
     function updateSpectrum() {
       const columnIndex = parseInt(columnSelect.value);
