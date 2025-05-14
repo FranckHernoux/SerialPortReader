@@ -244,10 +244,10 @@
             
               // Redémarrage des timers
               if (timePlotUpdater) clearInterval(timePlotUpdater);
-              timePlotUpdater = setInterval(updateTimePlot, 200);
+              timePlotUpdater = setInterval(updateTimePlot, 100);
             
               if (spectrumInterval) clearInterval(spectrumInterval);
-              spectrumInterval = setInterval(updateSpectrum, 10000);
+              spectrumInterval = setInterval(updateSpectrum, 500);
               updateSpectrum();
               continue;
             }
